@@ -172,6 +172,7 @@ describe("ILinkClient", () => {
       .post("/ilink/bot/getupdates", (body) => {
         expect(body).toMatchObject({
           get_updates_buf: "cursor-1",
+          timeout: 35_000,
           base_info: {
             bot_type: ILINK_BOT_TYPE
           }
@@ -201,12 +202,33 @@ describe("ILinkClient", () => {
     await client.sendText("user-1@im.wechat", "reply text", "client-123");
 
     expect(pollResult).toStrictEqual({
-      messages: [incomingMessage],
+      messages: [
+        {
+          raw: incomingMessage,
+          fromUserId: "user-1@im.wechat",
+          toUserId: "bot@im.bot",
+          contextToken: "ctx-abc",
+          itemList: incomingMessage.item_list,
+          primaryItem: incomingMessage.item_list[0],
+          primaryItemKind: "text",
+          text: "hello"
+        }
+      ],
+      rawMessages: [incomingMessage],
       getUpdatesBuf: "cursor-2",
       longPollingTimeoutMs: 35_000,
       sessionExpired: false
     });
-    expect(messages).toHaveBeenCalledWith(incomingMessage);
+    expect(messages).toHaveBeenCalledWith({
+      raw: incomingMessage,
+      fromUserId: "user-1@im.wechat",
+      toUserId: "bot@im.bot",
+      contextToken: "ctx-abc",
+      itemList: incomingMessage.item_list,
+      primaryItem: incomingMessage.item_list[0],
+      primaryItemKind: "text",
+      text: "hello"
+    });
     expect(outboundBody).toMatchObject({
       msg: {
         from_user_id: "",
@@ -261,10 +283,62 @@ describe("ILinkClient", () => {
 
     expect(result).toStrictEqual({
       messages: [],
+      rawMessages: [],
       getUpdatesBuf: "cursor-expired",
       sessionExpired: true
     });
-    expect(onSessionExpired).toHaveBeenCalledTimes(1);
+    expect(onSessionExpired).toHaveBeenCalledWith("default");
+  });
+
+  it("poll parses text quotes and prioritizes media items", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+
+    const incomingMessage = {
+      from_user_id: "user-2@im.wechat",
+      context_token: "ctx-media",
+      item_list: [
+        {
+          type: MessageItemType.TEXT,
+          text_item: {
+            text: "正文"
+          },
+          ref_msg: {
+            title: "引用摘要",
+            message_item: {
+              type: MessageItemType.TEXT,
+              text_item: {
+                text: "被引用内容"
+              }
+            }
+          }
+        },
+        {
+          type: MessageItemType.IMAGE,
+          image_item: {
+            url: "https://example.com/image.jpg"
+          }
+        }
+      ]
+    };
+
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getupdates")
+      .reply(200, {
+        ret: 0,
+        msgs: [incomingMessage],
+        get_updates_buf: "cursor-media"
+      });
+
+    const result = await client.poll();
+
+    expect(result.messages[0]).toMatchObject({
+      fromUserId: "user-2@im.wechat",
+      contextToken: "ctx-media",
+      primaryItemKind: "image",
+      text: "[引用: 引用摘要 | 被引用内容]\n正文"
+    });
   });
 
   it("dispose emits stopped exactly once", () => {
