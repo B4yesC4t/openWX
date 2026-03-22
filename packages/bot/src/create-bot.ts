@@ -1,27 +1,86 @@
-import { createCoreScaffold } from "@openwx/core";
+import {
+  ILinkClient,
+  type BuiltInQRDisplay,
+  type QRDisplayProvider
+} from "@openwx/core";
 
-import { type BotMessageHandler } from "./handler.js";
-import { createLifecycleScaffold } from "./lifecycle.js";
+import type { CommandHandlers, ErrorHandler, MessageHandler } from "./handler.js";
+import {
+  ManagedBot,
+  type Bot,
+  type BotClient,
+  type ManagedBotRuntimeOptions
+} from "./lifecycle.js";
 
 export interface CreateBotOptions {
-  readonly name?: string;
-  readonly onMessage?: BotMessageHandler;
+  readonly token?: string;
+  readonly accountId?: string;
+  readonly onMessage?: MessageHandler;
+  readonly onError?: ErrorHandler;
+  readonly commands?: CommandHandlers;
+  readonly storeDir?: string;
+  readonly qrDisplay?: BuiltInQRDisplay | QRDisplayProvider;
+  readonly autoDownloadMedia?: boolean;
 }
 
-export interface BotScaffold {
-  readonly packageName: "@openwx/bot";
-  readonly name: string;
-  readonly hasHandler: boolean;
-  readonly lifecycle: ReturnType<typeof createLifecycleScaffold>;
-  readonly core: ReturnType<typeof createCoreScaffold>;
+export interface CreateBotRuntimeOptions extends ManagedBotRuntimeOptions {
+  readonly clientFactory?: () => BotClient;
 }
 
-export function createBot(options: CreateBotOptions = {}): BotScaffold {
-  return {
-    packageName: "@openwx/bot",
-    name: options.name ?? "openwx-bot",
-    hasHandler: typeof options.onMessage === "function",
-    lifecycle: createLifecycleScaffold(),
-    core: createCoreScaffold()
-  };
+export function createBot(
+  options: CreateBotOptions,
+  runtime: CreateBotRuntimeOptions = {}
+): Bot {
+  validateOptions(options);
+
+  const clientFactory =
+    runtime.clientFactory ??
+    (() =>
+      new ILinkClient({
+        ...(options.token !== undefined ? { token: options.token } : {}),
+        ...(options.accountId !== undefined ? { accountId: options.accountId } : {}),
+        ...(options.storeDir !== undefined ? { storeDir: options.storeDir } : {}),
+        ...(options.qrDisplay !== undefined ? { qrDisplay: options.qrDisplay } : {})
+      }));
+
+  return new ManagedBot(
+    {
+      ...(options.accountId !== undefined ? { accountId: options.accountId } : {}),
+      ...(options.onMessage !== undefined ? { onMessage: options.onMessage } : {}),
+      ...(options.onError !== undefined ? { onError: options.onError } : {}),
+      ...(options.commands !== undefined ? { commands: options.commands } : {}),
+      autoDownloadMedia: options.autoDownloadMedia ?? false,
+      clientFactory
+    },
+    runtime
+  );
+}
+
+function validateOptions(options: CreateBotOptions): void {
+  const hasOnMessage = typeof options.onMessage === "function";
+  const hasCommands = options.commands !== undefined && Object.keys(options.commands).length > 0;
+
+  if (!hasOnMessage && !hasCommands) {
+    throw new Error("createBot requires onMessage or at least one command handler.");
+  }
+
+  if (options.token !== undefined && options.token.trim().length === 0) {
+    throw new Error("Bot token cannot be empty.");
+  }
+
+  if (options.onError !== undefined && typeof options.onError !== "function") {
+    throw new Error("onError must be a function.");
+  }
+
+  if (options.commands) {
+    for (const [command, handler] of Object.entries(options.commands)) {
+      if (!command.startsWith("/")) {
+        throw new Error(`Command "${command}" must start with "/".`);
+      }
+
+      if (typeof handler !== "function") {
+        throw new Error(`Command "${command}" handler must be a function.`);
+      }
+    }
+  }
 }

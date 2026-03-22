@@ -1,13 +1,37 @@
 import { describe, expect, it } from "vitest";
 
 import { createBot } from "../src/create-bot.js";
+import { FakeClient } from "./test-helpers.js";
 
 describe("createBot", () => {
-  it("assembles the bot scaffold and internal core dependency", () => {
-    const bot = createBot();
+  it("requires onMessage or at least one command handler", () => {
+    expect(() => createBot({})).toThrow(
+      "createBot requires onMessage or at least one command handler."
+    );
+  });
 
-    expect(bot.name).toBe("openwx-bot");
-    expect(bot.lifecycle.autoReconnect).toBe(true);
-    expect(bot.core.auth.botType).toBe("3");
+  it("rejects commands without a leading slash", () => {
+    expect(() =>
+      createBot({
+        commands: {
+          help: async () => undefined
+        }
+      })
+    ).toThrow('Command "help" must start with "/".');
+  });
+
+  it("creates a managed bot around the provided client factory", () => {
+    const client = new FakeClient("bot-token");
+    const bot = createBot(
+      {
+        onMessage: async () => "pong"
+      },
+      {
+        clientFactory: () => client
+      }
+    );
+
+    expect(bot.client).toBe(client);
+    expect(bot.state).toBe("idle");
   });
 });
