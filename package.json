@@ -1,0 +1,29 @@
+{
+  "name": "openwx",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "dev": "pnpm -r --parallel --if-present dev",
+    "format": "prettier . --check"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.5.0",
+    "eslint": "10.1.0",
+    "globals": "17.4.0",
+    "prettier": "3.8.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.57.1",
+    "vitest": "4.1.0"
+  }
+}

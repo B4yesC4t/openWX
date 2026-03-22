@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "resolveJsonModule": true,
+    "useDefineForClassFields": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@openwx/core": ["packages/core/src/index.ts"],
+      "@openwx/bot": ["packages/bot/src/index.ts"],
+      "@openwx/hub": ["packages/hub/src/index.ts"],
+      "@openwx/connector-claude-code": ["packages/connectors/claude-code/src/index.ts"],
+      "@openwx/connector-echo": ["packages/connectors/echo/src/index.ts"],
+      "@openwx/connector-http-proxy": ["packages/connectors/http-proxy/src/index.ts"]
+    }
+  }
+}
