@@ -73,6 +73,14 @@ describe("Router", () => {
     expect(match).toBeNull();
   });
 
+  it("rejects unsafe regular expressions even when router config is created programmatically", () => {
+    expect(() =>
+      createRouter({
+        routes: [{ pattern: "(a+)+$", handler: "echo" }]
+      })
+    ).toThrow(/unsafe regular expression/i);
+  });
+
   it("dispatches through the connector assigned to the matched route", async () => {
     const router = createRouter({
       routes: [

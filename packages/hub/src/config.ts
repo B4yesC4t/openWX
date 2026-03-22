@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import safeRegex from "safe-regex";
 import YAML from "yaml";
 
 export interface HubAuthConfig {
@@ -70,9 +71,9 @@ export function parseHubConfig(
   content: string,
   options: LoadHubConfigOptions & { readonly format: "json" | "yaml" }
 ): HubConfig {
-  const substituted = substituteEnvironmentVariables(content, options.env ?? process.env);
-  const rawConfig = parseConfigDocument(substituted, options.format);
-  return normalizeHubConfig(rawConfig, options.allowedHandlers ?? DEFAULT_HANDLER_NAMES);
+  const rawConfig = parseConfigDocument(content, options.format);
+  const substitutedConfig = substituteEnvironmentVariablesInValue(rawConfig, options.env ?? process.env);
+  return normalizeHubConfig(substitutedConfig, options.allowedHandlers ?? DEFAULT_HANDLER_NAMES);
 }
 
 export function validateHubConfig(
@@ -94,6 +95,23 @@ export function substituteEnvironmentVariables(
 
     return value;
   });
+}
+
+export function validateRoutePattern(pattern: string, fieldName = "pattern"): string {
+  try {
+    new RegExp(pattern);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid regular expression in ${fieldName}: ${message}`, {
+      cause: error
+    });
+  }
+
+  if (!safeRegex(pattern)) {
+    throw new Error(`Unsafe regular expression in ${fieldName}: "${pattern}".`);
+  }
+
+  return pattern;
 }
 
 function detectConfigFormat(filePath: string): "json" | "yaml" {
@@ -216,13 +234,15 @@ function normalizeRoute(
   const users = normalizeStringArray(route.users, `routes[${index}].users`);
   const prefix = asOptionalString(route.prefix, `routes[${index}].prefix`);
   const pattern = asOptionalString(route.pattern, `routes[${index}].pattern`);
+  const validatedPattern =
+    pattern === undefined ? undefined : validateRoutePattern(pattern, `routes[${index}].pattern`);
   const isDefault =
     route.default === undefined ? false : asBoolean(route.default, `routes[${index}].default`);
 
   const matcherCount = Number(prefix !== undefined) +
     Number(normalizedKeywords !== undefined) +
     Number(users !== undefined) +
-    Number(pattern !== undefined) +
+    Number(validatedPattern !== undefined) +
     Number(isDefault);
 
   if (matcherCount === 0) {
@@ -233,17 +253,6 @@ function normalizeRoute(
     throw new Error(`Route #${index + 1} must define exactly one matcher type.`);
   }
 
-  if (pattern !== undefined) {
-    try {
-      new RegExp(pattern);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Route #${index + 1} has invalid pattern "${pattern}": ${message}`, {
-        cause: error
-      });
-    }
-  }
-
   const config = normalizeConfigObject(route.config, index);
 
   return {
@@ -252,7 +261,7 @@ function normalizeRoute(
     ...(prefix !== undefined ? { prefix } : {}),
     ...(normalizedKeywords !== undefined ? { keywords: normalizedKeywords } : {}),
     ...(users !== undefined ? { users } : {}),
-    ...(pattern !== undefined ? { pattern } : {}),
+    ...(validatedPattern !== undefined ? { pattern: validatedPattern } : {}),
     ...(isDefault ? { default: true } : {}),
     ...(route.stripPrefix !== undefined
       ? { stripPrefix: asBoolean(route.stripPrefix, `routes[${index}].stripPrefix`) }
@@ -318,4 +327,28 @@ function asBoolean(value: unknown, fieldName: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function substituteEnvironmentVariablesInValue<T>(
+  value: T,
+  env: NodeJS.ProcessEnv
+): T {
+  if (typeof value === "string") {
+    return substituteEnvironmentVariables(value, env) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => substituteEnvironmentVariablesInValue(item, env)) as T;
+  }
+
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        substituteEnvironmentVariablesInValue(entry, env)
+      ])
+    ) as T;
+  }
+
+  return value;
 }

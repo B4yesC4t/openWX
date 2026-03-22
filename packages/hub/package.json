@@ -49,6 +49,7 @@
   "dependencies": {
     "@openwx/bot": "workspace:*",
     "@openwx/core": "workspace:*",
+    "safe-regex": "^2.1.1",
     "yaml": "^2.8.3"
   },
   "scripts": {
@@ -57,5 +58,8 @@
     "lint": "eslint src tests",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/safe-regex": "^1.1.6"
   }
 }

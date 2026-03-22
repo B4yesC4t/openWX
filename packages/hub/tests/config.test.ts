@@ -74,6 +74,37 @@ describe("hub config", () => {
     expect(config.routes[1]?.handler).toBe("http-proxy");
   });
 
+  it("substitutes environment variables after parsing so escaped JSON strings remain valid", () => {
+    const config = parseHubConfig(
+      JSON.stringify({
+        auth: {
+          storeDir: "${OPENWX_STORE_DIR}"
+        },
+        routes: [
+          {
+            prefix: "/ai",
+            handler: "claude-code",
+            config: {
+              endpoint: "${OPENWX_ENDPOINT}"
+            }
+          }
+        ]
+      }),
+      {
+        format: "json",
+        env: {
+          OPENWX_STORE_DIR: "C:\\Users\\alice\\openwx",
+          OPENWX_ENDPOINT: "https://example.com/chat?path=C:\\temp\\logs"
+        }
+      }
+    );
+
+    expect(config.auth?.storeDir).toBe("C:\\Users\\alice\\openwx");
+    expect(config.routes[0]?.config).toEqual({
+      endpoint: "https://example.com/chat?path=C:\\temp\\logs"
+    });
+  });
+
   it("validates supported handlers and required fields", () => {
     expect(() =>
       defineHubConfig({
@@ -119,6 +150,20 @@ describe("hub config", () => {
         { format: "json" }
       )
     ).toThrow(/must define exactly one matcher type/i);
+
+    expect(() =>
+      parseHubConfig(
+        JSON.stringify({
+          routes: [
+            {
+              pattern: "(a+)+$",
+              handler: "echo"
+            }
+          ]
+        }),
+        { format: "json" }
+      )
+    ).toThrow(/unsafe regular expression/i);
   });
 
   async function writeTempConfig(fileName: string, content: string): Promise<string> {

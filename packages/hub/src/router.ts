@@ -1,6 +1,6 @@
 import type { Connector, ConnectorRequest, ConnectorResponse } from "@openwx/core";
 
-import { type HubConfig, type HubRouteConfig } from "./config.js";
+import { type HubConfig, type HubRouteConfig, validateRoutePattern } from "./config.js";
 
 export interface HubRouterLogger {
   warn(message: string): void;
@@ -37,11 +37,18 @@ export class Router {
   private readonly routes: readonly PreparedRoute[];
 
   constructor(config: HubConfig, options: RouterOptions = {}) {
-    this.routes = config.routes.map((route, index) => ({
-      index,
-      route,
-      ...(route.pattern !== undefined ? { regex: new RegExp(route.pattern) } : {})
-    }));
+    this.routes = config.routes.map((route, index) => {
+      const pattern =
+        route.pattern === undefined
+          ? undefined
+          : validateRoutePattern(route.pattern, `routes[${index}].pattern`);
+
+      return {
+        index,
+        route,
+        ...(pattern !== undefined ? { regex: new RegExp(pattern) } : {})
+      };
+    });
     this.warnings = detectRouteConflicts(config.routes);
 
     for (const warning of this.warnings) {
