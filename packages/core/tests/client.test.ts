@@ -9,7 +9,7 @@ import {
   randomWechatUin,
   SESSION_EXPIRED_ERRCODE
 } from "../src/client.js";
-import { MessageItemType, MessageState, MessageType } from "../src/types.js";
+import { MessageItemType, MessageState, MessageType, TypingStatus } from "../src/types.js";
 
 describe("ILinkClient", () => {
   beforeAll(() => {
@@ -261,6 +261,167 @@ describe("ILinkClient", () => {
     await expect(client.sendText("missing@im.wechat", "reply")).rejects.toThrow(
       "No context_token for user missing@im.wechat. Cannot send without receiving a message first."
     );
+  });
+
+  it("sendText can attach a quoted message reference", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getupdates")
+      .reply(200, {
+        ret: 0,
+        msgs: [
+          {
+            from_user_id: "user-quote@im.wechat",
+            context_token: "ctx-quote",
+            item_list: [
+              {
+                type: MessageItemType.TEXT,
+                text_item: {
+                  text: "hello"
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+    let outboundBody: unknown;
+    const sendScope = nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/sendmessage", (body) => {
+        outboundBody = body;
+        return true;
+      })
+      .reply(200, {
+        ret: 0
+      });
+
+    await client.poll();
+    await client.sendText("user-quote@im.wechat", "quoted reply", {
+      clientId: "client-quote",
+      replyTo: 99
+    });
+
+    expect(outboundBody).toMatchObject({
+      msg: {
+        client_id: "client-quote",
+        context_token: "ctx-quote",
+        quoted_msg: {
+          message_id: 99
+        }
+      }
+    });
+    expect(sendScope.isDone()).toBe(true);
+  });
+
+  it("getConfig caches the typing ticket for a user", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getupdates")
+      .reply(200, {
+        ret: 0,
+        msgs: [
+          {
+            from_user_id: "user-config@im.wechat",
+            context_token: "ctx-config",
+            item_list: []
+          }
+        ]
+      });
+
+    const scope = nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getconfig", (body) => {
+        expect(body).toMatchObject({
+          ilink_user_id: "user-config@im.wechat",
+          context_token: "ctx-config"
+        });
+        return true;
+      })
+      .once()
+      .reply(200, {
+        ret: 0,
+        typing_ticket: "typing-ticket"
+      });
+
+    await client.poll();
+    const first = await client.getConfig("user-config@im.wechat");
+    const second = await client.getConfig("user-config@im.wechat");
+
+    expect(first).toStrictEqual({
+      ret: 0,
+      typing_ticket: "typing-ticket"
+    });
+    expect(second).toStrictEqual(first);
+    expect(scope.isDone()).toBe(true);
+  });
+
+  it("sendTyping and cancelTyping reuse the cached typing ticket", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getupdates")
+      .reply(200, {
+        ret: 0,
+        msgs: [
+          {
+            from_user_id: "user-typing@im.wechat",
+            context_token: "ctx-typing",
+            item_list: []
+          }
+        ]
+      });
+
+    const typingBodies: unknown[] = [];
+    const configScope = nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/getconfig")
+      .once()
+      .reply(200, {
+        ret: 0,
+        typing_ticket: "typing-ticket"
+      });
+    const typingScope = nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/sendtyping", (body) => {
+        typingBodies.push(body);
+        return true;
+      })
+      .twice()
+      .reply(200, {
+        ret: 0
+      });
+
+    await client.poll();
+    await client.sendTyping("user-typing@im.wechat");
+    await client.cancelTyping("user-typing@im.wechat");
+
+    expect(configScope.isDone()).toBe(true);
+    expect(typingScope.isDone()).toBe(true);
+    expect(typingBodies).toStrictEqual([
+      {
+        ilink_user_id: "user-typing@im.wechat",
+        typing_ticket: "typing-ticket",
+        status: TypingStatus.TYPING,
+        base_info: {
+          bot_type: ILINK_BOT_TYPE,
+          channel_version: "1.0.0"
+        }
+      },
+      {
+        ilink_user_id: "user-typing@im.wechat",
+        typing_ticket: "typing-ticket",
+        status: TypingStatus.CANCEL,
+        base_info: {
+          bot_type: ILINK_BOT_TYPE,
+          channel_version: "1.0.0"
+        }
+      }
+    ]);
   });
 
   it("poll flags session expiry and emits sessionExpired", async () => {

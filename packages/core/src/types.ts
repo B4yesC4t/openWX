@@ -250,6 +250,14 @@ export interface RefMessage {
 }
 
 /**
+ * Reference to an earlier message quoted by an outbound reply.
+ */
+export interface QuotedMessage {
+  /** Server message ID being quoted. */
+  message_id?: number | string;
+}
+
+/**
  * Single item inside a Weixin message payload.
  */
 export interface MessageItem {
@@ -309,6 +317,8 @@ export interface WeixinMessage {
   item_list?: MessageItem[];
   /** Conversation token that must be echoed back in replies. */
   context_token?: string;
+  /** Optional outbound quote reference. */
+  quoted_msg?: QuotedMessage;
 }
 
 /**
@@ -497,6 +507,18 @@ export interface OutboundMessage {
   readonly text?: string;
   /** Fully constructed message item for non-text sends. */
   readonly item?: MessageItem;
+  /** Optional quoted server message ID attached to the reply. */
+  readonly replyTo?: number | string;
+}
+
+/**
+ * Convenience options for `ILinkClient.sendText()`.
+ */
+export interface SendTextOptions {
+  /** Optional caller-supplied client ID. */
+  readonly clientId?: string;
+  /** Optional quoted server message ID attached to the reply. */
+  readonly replyTo?: number | string;
 }
 
 /**
