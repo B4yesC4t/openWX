@@ -2,10 +2,22 @@ import * as crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 
 import {
+  login as loginWithQRCode,
+  waitForScan as waitForQRCodeScan,
+  getLoginQRCode as requestLoginQRCode,
+  type AuthRequestOptions,
+  type LoginOptions,
+  type LoginQRCode,
+  type LoginResult,
+  type ScanResult,
+  type WaitForScanOptions
+} from "./auth.js";
+import {
   InboundMessageItemKind,
   MessageItemType,
   MessageState,
   MessageType,
+  createScaffoldModule,
   type GetConfigReq,
   type GetConfigResp,
   type GetUpdatesResp,
@@ -22,17 +34,25 @@ import {
   type SendMessageResp,
   type SendTypingReq,
   type SendTypingResp,
+  type ScaffoldModule,
   type StartPollingOptions,
   type WeixinMessage
 } from "./types.js";
-import { createScaffoldModule, type ScaffoldModule } from "./types.js";
+import { resolveQRDisplayProvider, type QRDisplayProvider } from "./qr-display.js";
+import {
+  DEFAULT_STORE_DIR,
+  FileSystemStore,
+  normalizeAccountId,
+  type StoredAccount,
+  type Store,
+  type SyncBufferStore
+} from "./store.js";
 import {
   DEFAULT_LONG_POLL_TIMEOUT_MS,
   LONG_POLL_REQUEST_GRACE_MS,
   PollingEngine
 } from "./polling.js";
 import { SESSION_EXPIRED_CODE, SessionGuard } from "./session.js";
-import { DEFAULT_STORE_DIR, FileSyncBufferStore, type SyncBufferStore } from "./store.js";
 
 export const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
 export const DEFAULT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
@@ -204,37 +224,41 @@ export class ILinkClient extends EventEmitter {
 
   private readonly contextTokens = new Map<string, string>();
   private readonly activeControllers = new Set<AbortController>();
-  private readonly pollingEngine: PollingEngine;
+  private readonly store: Store;
+  private readonly qrDisplay: QRDisplayProvider;
+  private pollingEngine: PollingEngine;
   private readyEmitted = false;
   private disposed = false;
 
   constructor(options: ILinkClientOptions = {}) {
     super();
-
-    const storeDir = options.storeDir ?? DEFAULT_STORE_DIR;
-    const store = options.store ?? new FileSyncBufferStore(storeDir);
+    const accountStore =
+      options.store ??
+      new FileSystemStore(options.storeDir ? { rootDir: options.storeDir } : {});
+    const syncStore = options.syncStore ?? accountStore;
     const sessionGuard = options.sessionGuard ?? new SessionGuard();
+    const normalizedAccountId = options.accountId
+      ? normalizeAccountId(options.accountId)
+      : DEFAULT_ACCOUNT_ID;
+    const persistedAccount = options.accountId
+      ? accountStore.loadAccount(normalizedAccountId)
+      : null;
 
+    this.store = accountStore;
+    this.qrDisplay = resolveQRDisplayProvider(options.qrDisplay);
     this.options = {
-      baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
+      baseUrl: trimTrailingSlash(options.baseUrl ?? persistedAccount?.baseUrl ?? DEFAULT_BASE_URL),
       cdnBaseUrl: trimTrailingSlash(options.cdnBaseUrl ?? DEFAULT_CDN_BASE_URL),
-      token: options.token ?? "",
-      storeDir,
+      token: options.token ?? persistedAccount?.token ?? "",
+      storeDir: options.storeDir ?? DEFAULT_STORE_DIR,
       skRouteTag: options.skRouteTag ?? "",
       channelVersion: options.channelVersion ?? DEFAULT_CHANNEL_VERSION,
-      accountId: options.accountId ?? DEFAULT_ACCOUNT_ID,
-      store,
+      accountId: normalizedAccountId,
+      store: syncStore,
       sessionGuard
     };
 
-    this.pollingEngine = new PollingEngine({
-      accountId: this.options.accountId,
-      client: {
-        poll: (pollOptions?: PollOptions) => this.performPoll(pollOptions)
-      },
-      store: this.options.store,
-      sessionGuard: this.options.sessionGuard
-    });
+    this.pollingEngine = this.createPollingEngine(this.options.accountId);
   }
 
   on<E extends keyof ILinkClientEvents>(
@@ -269,9 +293,61 @@ export class ILinkClient extends EventEmitter {
   describe(): ScaffoldModule {
     return createScaffoldModule(this.packageName, [
       "ILinkClient now builds authenticated POST requests with protocol defaults.",
+      "QR login and persisted account restoration are available through the core client.",
       `Default API base: ${this.options.baseUrl}`,
       `Default CDN base: ${this.options.cdnBaseUrl}`
     ]);
+  }
+
+  async getLoginQRCode(
+    options: Omit<AuthRequestOptions, "baseUrl"> = {}
+  ): Promise<LoginQRCode> {
+    return requestLoginQRCode({
+      ...options,
+      baseUrl: this.options.baseUrl
+    });
+  }
+
+  async waitForScan(
+    sessionKey: string,
+    options: Omit<WaitForScanOptions, "baseUrl"> = {}
+  ): Promise<ScanResult> {
+    return waitForQRCodeScan(sessionKey, {
+      ...options,
+      baseUrl: this.options.baseUrl
+    });
+  }
+
+  async login(options: Omit<LoginOptions, "baseUrl" | "store" | "qrDisplay"> = {}): Promise<LoginResult> {
+    const result = await loginWithQRCode({
+      ...options,
+      baseUrl: this.options.baseUrl,
+      store: this.store,
+      qrDisplay: this.qrDisplay
+    });
+
+    this.applyPersistedAccount(result.accountId, {
+      token: result.token,
+      baseUrl: result.baseUrl,
+      userId: result.userId,
+      savedAt: result.savedAt
+    });
+
+    return result;
+  }
+
+  restoreAccount(accountId = this.options.accountId): boolean {
+    if (!accountId) {
+      return false;
+    }
+
+    const persistedAccount = this.store.loadAccount(accountId);
+    if (persistedAccount === null) {
+      return false;
+    }
+
+    this.applyPersistedAccount(accountId, persistedAccount);
+    return true;
   }
 
   async apiFetch<TResponse, TBody extends object = RequestBody>(
@@ -606,5 +682,25 @@ export class ILinkClient extends EventEmitter {
     }
 
     return options.requestKind !== "long-poll";
+  }
+
+  private applyPersistedAccount(accountId: string, persistedAccount: StoredAccount): void {
+    const normalizedAccountId = normalizeAccountId(accountId);
+
+    this.options.accountId = normalizedAccountId;
+    this.options.token = persistedAccount.token;
+    this.options.baseUrl = trimTrailingSlash(persistedAccount.baseUrl);
+    this.pollingEngine = this.createPollingEngine(normalizedAccountId);
+  }
+
+  private createPollingEngine(accountId: string): PollingEngine {
+    return new PollingEngine({
+      accountId,
+      client: {
+        poll: (pollOptions?: PollOptions) => this.performPoll(pollOptions)
+      },
+      store: this.options.store,
+      sessionGuard: this.options.sessionGuard
+    });
   }
 }

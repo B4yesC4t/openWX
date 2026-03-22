@@ -353,4 +353,91 @@ describe("ILinkClient", () => {
 
     expect(stopped).toHaveBeenCalledTimes(1);
   });
+
+  it("restores persisted credentials from the configured store", () => {
+    const store = {
+      saveAccount: vi.fn(),
+      loadAccount: vi.fn().mockReturnValue({
+        token: "persisted-token",
+        baseUrl: "https://persisted.example.com/",
+        userId: "persisted-user@im.wechat",
+        savedAt: "2026-03-23T00:00:00.000Z"
+      }),
+      saveSyncBuf: vi.fn(),
+      loadSyncBuf: vi.fn(),
+      listAccounts: vi.fn()
+    };
+
+    const client = new ILinkClient({
+      accountId: "bot@im.bot",
+      store
+    });
+
+    expect(store.loadAccount).toHaveBeenCalledWith("bot-im-bot");
+    expect(client.options.token).toBe("persisted-token");
+    expect(client.options.baseUrl).toBe("https://persisted.example.com");
+  });
+
+  it("login updates the client auth state and persists the confirmed account", async () => {
+    const store = {
+      saveAccount: vi.fn(),
+      loadAccount: vi.fn().mockReturnValue(null),
+      saveSyncBuf: vi.fn(),
+      loadSyncBuf: vi.fn(),
+      listAccounts: vi.fn()
+    };
+    const qrDisplay = {
+      display: vi.fn(async () => undefined)
+    };
+
+    nock("https://ilinkai.weixin.qq.com")
+      .get("/cgi-bin/ilink/ilink_bot/get_bot_qrcode")
+      .query({
+        bot_type: "3"
+      })
+      .reply(200, {
+        session_key: "session-1",
+        qrcode_url: "https://example.com/qr.png"
+      })
+      .get("/cgi-bin/ilink/ilink_bot/get_qrcode_status")
+      .query({
+        session_key: "session-1",
+        bot_type: "3"
+      })
+      .reply(200, {
+        status: 2,
+        token: "bot-token",
+        account_id: "demo@im.bot",
+        user_id: "user@im.wechat",
+        base_url: "https://alt.example.com/"
+      });
+
+    const client = new ILinkClient({
+      store,
+      qrDisplay
+    });
+
+    await expect(
+      client.login({
+        sleep: async () => undefined,
+        now: () => 0
+      })
+    ).resolves.toStrictEqual({
+      token: "bot-token",
+      accountId: "demo-im-bot",
+      userId: "user@im.wechat",
+      baseUrl: "https://alt.example.com",
+      savedAt: "1970-01-01T00:00:00.000Z"
+    });
+
+    expect(client.options.token).toBe("bot-token");
+    expect(client.options.baseUrl).toBe("https://alt.example.com");
+    expect(qrDisplay.display).toHaveBeenCalledWith("https://example.com/qr.png");
+    expect(store.saveAccount).toHaveBeenCalledWith("demo-im-bot", {
+      token: "bot-token",
+      baseUrl: "https://alt.example.com",
+      userId: "user@im.wechat",
+      savedAt: "1970-01-01T00:00:00.000Z"
+    });
+  });
 });
