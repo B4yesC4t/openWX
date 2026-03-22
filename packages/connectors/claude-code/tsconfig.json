@@ -5,8 +5,7 @@
     "types": [
       "node",
       "vitest/globals"
-    ],
-    "paths": {}
+    ]
   },
   "include": [
     "src/**/*.ts",

@@ -8,11 +8,11 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
-    "dev": "pnpm -r --parallel --if-present dev",
+    "build": "node ./scripts/run-workspace-script.mjs build",
+    "typecheck": "node ./scripts/run-workspace-script.mjs typecheck",
+    "lint": "node ./scripts/run-workspace-script.mjs lint",
+    "test": "node ./scripts/run-workspace-script.mjs test",
+    "dev": "node ./scripts/run-workspace-script.mjs dev --parallel",
     "format": "prettier . --check"
   },
   "devDependencies": {
