@@ -84,6 +84,21 @@ export const UploadMediaType = {
 export type UploadMediaTypeValue = (typeof UploadMediaType)[keyof typeof UploadMediaType];
 
 /**
+ * High-level media categories used by the runtime helpers.
+ */
+export const MediaType = {
+  IMAGE: "image",
+  VIDEO: "video",
+  FILE: "file",
+  VOICE: "voice"
+} as const;
+
+/**
+ * Union type for high-level media categories.
+ */
+export type MediaTypeValue = (typeof MediaType)[keyof typeof MediaType];
+
+/**
  * Direction/source of a WeChat message.
  */
 export const MessageType = {
@@ -147,10 +162,18 @@ export type TypingStatusValue = (typeof TypingStatus)[keyof typeof TypingStatus]
 export interface CDNMedia {
   /** Encrypted download query string used with the CDN endpoint. */
   encrypt_query_param?: string;
+  /** Alternate CDN URL/file identifier form seen in some protocol notes. */
+  cdn_url?: string;
+  /** Alternate file identifier field returned by some CDN payloads. */
+  file_id?: string;
   /** AES-128 media key encoded with base64 in protocol payloads. */
   aes_key?: string;
   /** Encryption mode metadata from iLink. */
   encrypt_type?: number;
+  /** Original plaintext file size used when truncating decrypted payloads. */
+  file_size?: number;
+  /** Media type hint used by alternate CDN download URLs. */
+  file_type?: UploadMediaTypeValue | MediaTypeValue | string | number;
 }
 
 /**
@@ -413,6 +436,30 @@ export interface GetUploadUrlResp extends ApiResponse {
   upload_param?: string;
   /** CDN upload token for the thumbnail. */
   thumb_upload_param?: string;
+}
+
+/**
+ * Result returned by the media upload helper.
+ */
+export interface UploadResult {
+  /** Random file key bound to the CDN upload. */
+  fileKey: string;
+  /** Media category used for the upload. */
+  mediaType: MediaTypeValue;
+  /** Original plaintext file size in bytes. */
+  fileSize: number;
+  /** Ciphertext size after AES padding in bytes. */
+  encryptedFileSize: number;
+  /** Plaintext file MD5 in hex format. */
+  md5: string;
+  /** Raw AES key in hex format. */
+  aesKeyHex: string;
+  /** Protocol payload form of the AES key. */
+  aesKey: string;
+  /** Raw CDN response header value. */
+  rawHeader: string;
+  /** Normalized CDN media reference ready for message payloads/downloads. */
+  media: CDNMedia;
 }
 
 /**

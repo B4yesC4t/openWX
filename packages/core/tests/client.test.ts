@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import nock from "nock";
 import { afterEach, beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 
+import * as mediaModule from "../src/media.js";
 import {
   ILinkClient,
   ILINK_BOT_TYPE,
@@ -314,6 +315,204 @@ describe("ILinkClient", () => {
       }
     });
     expect(sendScope.isDone()).toBe(true);
+  });
+
+  it("sendImage uploads media metadata into the sendmessage body", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+    const internals = client as unknown as {
+      contextTokens: Map<string, string>;
+    };
+    internals.contextTokens.set("user-image@im.wechat", "ctx-image");
+
+    vi.spyOn(client, "uploadMedia").mockResolvedValue({
+      fileKey: "file-key",
+      mediaType: "image",
+      fileSize: 67,
+      encryptedFileSize: 80,
+      md5: "md5",
+      aesKeyHex: "0123456789abcdef0123456789abcdef",
+      aesKey: "aes-key",
+      rawHeader: "download-token",
+      media: {
+        encrypt_query_param: "download-token",
+        aes_key: "aes-key",
+        encrypt_type: 1,
+        file_size: 67
+      }
+    });
+    vi.spyOn(mediaModule, "readImageDimensions").mockResolvedValue({
+      width: 320,
+      height: 240
+    });
+
+    let outboundBody: unknown;
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/sendmessage", (body) => {
+        outboundBody = body;
+        return true;
+      })
+      .reply(200, {
+        ret: 0
+      });
+
+    await client.sendImage("user-image@im.wechat", "/tmp/fake.png");
+
+    expect(outboundBody).toMatchObject({
+      msg: {
+        to_user_id: "user-image@im.wechat",
+        context_token: "ctx-image",
+        item_list: [
+          {
+            type: MessageItemType.IMAGE,
+            image_item: {
+              media: {
+                encrypt_query_param: "download-token",
+                aes_key: "aes-key",
+                encrypt_type: 1,
+                file_size: 67
+              },
+              thumb_media: {
+                encrypt_query_param: "download-token",
+                aes_key: "aes-key",
+                encrypt_type: 1,
+                file_size: 67
+              },
+              mid_size: 80,
+              thumb_size: 80,
+              thumb_width: 320,
+              thumb_height: 240,
+              hd_size: 67
+            }
+          }
+        ]
+      }
+    });
+  });
+
+  it("sendVideo includes optional duration metadata", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+    const internals = client as unknown as {
+      contextTokens: Map<string, string>;
+    };
+    internals.contextTokens.set("user-video@im.wechat", "ctx-video");
+
+    vi.spyOn(client, "uploadMedia").mockResolvedValue({
+      fileKey: "file-key",
+      mediaType: "video",
+      fileSize: 2048,
+      encryptedFileSize: 2064,
+      md5: "md5",
+      aesKeyHex: "fedcba9876543210fedcba9876543210",
+      aesKey: "aes-key",
+      rawHeader: "download-token",
+      media: {
+        encrypt_query_param: "download-token",
+        aes_key: "aes-key",
+        encrypt_type: 1,
+        file_size: 2048
+      }
+    });
+    vi.spyOn(mediaModule, "probeVideoDuration").mockResolvedValue(4200);
+
+    let outboundBody: unknown;
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/sendmessage", (body) => {
+        outboundBody = body;
+        return true;
+      })
+      .reply(200, {
+        ret: 0
+      });
+
+    await client.sendVideo("user-video@im.wechat", "/tmp/fake.mp4");
+
+    expect(outboundBody).toMatchObject({
+      msg: {
+        to_user_id: "user-video@im.wechat",
+        context_token: "ctx-video",
+        item_list: [
+          {
+            type: MessageItemType.VIDEO,
+            video_item: {
+              media: {
+                encrypt_query_param: "download-token",
+                aes_key: "aes-key",
+                encrypt_type: 1,
+                file_size: 2048
+              },
+              video_size: 2048,
+              play_length: 4200
+            }
+          }
+        ]
+      }
+    });
+  });
+
+  it("sendFile uses the uploaded media descriptor and default file name", async () => {
+    const client = new ILinkClient({
+      token: "bot-token"
+    });
+    const internals = client as unknown as {
+      contextTokens: Map<string, string>;
+    };
+    internals.contextTokens.set("user-file@im.wechat", "ctx-file");
+
+    vi.spyOn(client, "uploadMedia").mockResolvedValue({
+      fileKey: "file-key",
+      mediaType: "file",
+      fileSize: 321,
+      encryptedFileSize: 336,
+      md5: "abc123",
+      aesKeyHex: "00112233445566778899aabbccddeeff",
+      aesKey: "aes-key",
+      rawHeader: "download-token",
+      media: {
+        encrypt_query_param: "download-token",
+        aes_key: "aes-key",
+        encrypt_type: 1,
+        file_size: 321
+      }
+    });
+
+    let outboundBody: unknown;
+    nock("https://ilinkai.weixin.qq.com")
+      .post("/ilink/bot/sendmessage", (body) => {
+        outboundBody = body;
+        return true;
+      })
+      .reply(200, {
+        ret: 0
+      });
+
+    await client.sendFile("user-file@im.wechat", "/tmp/report.pdf");
+
+    expect(outboundBody).toMatchObject({
+      msg: {
+        to_user_id: "user-file@im.wechat",
+        context_token: "ctx-file",
+        item_list: [
+          {
+            type: MessageItemType.FILE,
+            file_item: {
+              media: {
+                encrypt_query_param: "download-token",
+                aes_key: "aes-key",
+                encrypt_type: 1,
+                file_size: 321
+              },
+              file_name: "report.pdf",
+              len: "321",
+              md5: "abc123"
+            }
+          }
+        ]
+      }
+    });
   });
 
   it("getConfig caches the typing ticket for a user", async () => {
