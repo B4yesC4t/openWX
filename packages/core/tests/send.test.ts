@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { MessageItemType, MessageState, MessageType, TypingStatus } from "../src/types.js";
 import {
+  buildFileMessageItem,
   buildGetConfigRequest,
+  buildImageMessageItem,
   buildOutboundItem,
   buildSendMessageRequest,
   buildSendTypingRequest,
+  buildVideoMessageItem,
   createSendScaffold
 } from "../src/send.js";
 
@@ -94,6 +97,68 @@ describe("send helpers", () => {
       ilink_user_id: "user@im.wechat",
       typing_ticket: "ticket-1",
       status: TypingStatus.CANCEL
+    });
+  });
+
+  it("builds image, video, and file media items", () => {
+    const media = {
+      encrypt_query_param: "download-token",
+      aes_key: "aes-key",
+      encrypt_type: 1,
+      file_size: 1234
+    };
+
+    expect(
+      buildImageMessageItem({
+        media,
+        encryptedFileSize: 1248,
+        fileSize: 1234,
+        width: 640,
+        height: 480
+      })
+    ).toStrictEqual({
+      type: MessageItemType.IMAGE,
+      image_item: {
+        media,
+        thumb_media: media,
+        mid_size: 1248,
+        thumb_size: 1248,
+        thumb_width: 640,
+        thumb_height: 480,
+        hd_size: 1234
+      }
+    });
+
+    expect(
+      buildVideoMessageItem({
+        media,
+        fileSize: 555,
+        durationMs: 4200
+      })
+    ).toStrictEqual({
+      type: MessageItemType.VIDEO,
+      video_item: {
+        media,
+        video_size: 555,
+        play_length: 4200
+      }
+    });
+
+    expect(
+      buildFileMessageItem({
+        media,
+        fileName: "report.pdf",
+        fileSize: 321,
+        md5: "abc123"
+      })
+    ).toStrictEqual({
+      type: MessageItemType.FILE,
+      file_item: {
+        media,
+        file_name: "report.pdf",
+        len: "321",
+        md5: "abc123"
+      }
     });
   });
 });

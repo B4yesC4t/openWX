@@ -6,13 +6,17 @@ import {
   MessageType,
   TypingStatus,
   createScaffoldModule,
+  type CDNMedia,
+  type FileItem,
   type GetConfigReq,
+  type ImageItem,
   type MessageItem,
   type MessageItemTypeValue,
   type OutboundMessage,
   type ScaffoldModule,
   type SendMessageReq,
-  type SendTypingReq
+  type SendTypingReq,
+  type VideoItem
 } from "./types.js";
 
 export interface SendScaffold {
@@ -26,6 +30,27 @@ export interface BuildSendMessageRequestOptions {
   readonly to: string;
   readonly contextToken: string;
   readonly message: OutboundMessage;
+}
+
+export interface BuildImageItemOptions {
+  readonly media: CDNMedia;
+  readonly encryptedFileSize: number;
+  readonly fileSize: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface BuildVideoItemOptions {
+  readonly media: CDNMedia;
+  readonly fileSize: number;
+  readonly durationMs?: number;
+}
+
+export interface BuildFileItemOptions {
+  readonly media: CDNMedia;
+  readonly fileName: string;
+  readonly fileSize: number;
+  readonly md5?: string;
 }
 
 export function createSendScaffold(maxItemsPerMessage = 1): SendScaffold {
@@ -115,6 +140,50 @@ export function buildSendMessageRequest(
         : {}),
       item_list: [buildOutboundItem(options.message)]
     }
+  };
+}
+
+export function buildImageMessageItem(options: BuildImageItemOptions): MessageItem {
+  const imageItem: ImageItem = {
+    media: options.media,
+    thumb_media: options.media,
+    mid_size: options.encryptedFileSize,
+    thumb_size: options.encryptedFileSize,
+    thumb_width: options.width,
+    thumb_height: options.height,
+    hd_size: options.fileSize
+  };
+
+  return {
+    type: MessageItemType.IMAGE,
+    image_item: imageItem
+  };
+}
+
+export function buildVideoMessageItem(options: BuildVideoItemOptions): MessageItem {
+  const videoItem: VideoItem = {
+    media: options.media,
+    video_size: options.fileSize,
+    ...(options.durationMs !== undefined ? { play_length: options.durationMs } : {})
+  };
+
+  return {
+    type: MessageItemType.VIDEO,
+    video_item: videoItem
+  };
+}
+
+export function buildFileMessageItem(options: BuildFileItemOptions): MessageItem {
+  const fileItem: FileItem = {
+    media: options.media,
+    file_name: options.fileName,
+    len: String(options.fileSize),
+    ...(options.md5 !== undefined ? { md5: options.md5 } : {})
+  };
+
+  return {
+    type: MessageItemType.FILE,
+    file_item: fileItem
   };
 }
 

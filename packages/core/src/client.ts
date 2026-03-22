@@ -1,5 +1,6 @@
 import * as crypto from "node:crypto";
 import { EventEmitter } from "node:events";
+import { basename } from "node:path";
 
 import {
   login as loginWithQRCode,
@@ -13,15 +14,24 @@ import {
   type WaitForScanOptions
 } from "./auth.js";
 import {
+  downloadMedia as downloadEncryptedMedia,
+  probeVideoDuration,
+  readImageDimensions,
+  uploadMedia as uploadEncryptedMedia
+} from "./media.js";
+import {
   InboundMessageItemKind,
+  MediaType,
   MessageItemType,
   createScaffoldModule,
   type GetConfigReq,
   type GetConfigResp,
   type GetUpdatesResp,
+  type CDNMedia,
   type ILinkClientEvents,
   type ILinkClientOptions,
   type InboundMessage,
+  type MediaTypeValue,
   type InboundMessageItemKindValue,
   type MessageItem,
   type MessageItemTypeValue,
@@ -39,9 +49,12 @@ import {
 } from "./types.js";
 import { resolveQRDisplayProvider, type QRDisplayProvider } from "./qr-display.js";
 import {
+  buildFileMessageItem,
   buildGetConfigRequest,
+  buildImageMessageItem,
   buildSendMessageRequest,
   buildSendTypingRequest,
+  buildVideoMessageItem,
   inferMessageItemType
 } from "./send.js";
 import {
@@ -426,6 +439,68 @@ export class ILinkClient extends EventEmitter {
           };
 
     return this.send(to, message);
+  }
+
+  async uploadMedia(to: string, filePath: string, type: MediaTypeValue) {
+    return uploadEncryptedMedia({
+      filePath,
+      to,
+      type,
+      cdnBaseUrl: this.options.cdnBaseUrl,
+      apiFetch: (endpoint, body) => this.apiFetch(endpoint, body)
+    });
+  }
+
+  async downloadMedia(media: CDNMedia): Promise<Buffer> {
+    return downloadEncryptedMedia({
+      media,
+      cdnBaseUrl: this.options.cdnBaseUrl
+    });
+  }
+
+  async sendImage(to: string, filePath: string): Promise<SendMessageResp> {
+    const [uploadResult, dimensions] = await Promise.all([
+      this.uploadMedia(to, filePath, MediaType.IMAGE),
+      readImageDimensions(filePath)
+    ]);
+
+    return this.send(to, {
+      item: buildImageMessageItem({
+        media: uploadResult.media,
+        encryptedFileSize: uploadResult.encryptedFileSize,
+        fileSize: uploadResult.fileSize,
+        width: dimensions.width,
+        height: dimensions.height
+      })
+    });
+  }
+
+  async sendVideo(to: string, filePath: string): Promise<SendMessageResp> {
+    const [uploadResult, durationMs] = await Promise.all([
+      this.uploadMedia(to, filePath, MediaType.VIDEO),
+      probeVideoDuration(filePath)
+    ]);
+
+    return this.send(to, {
+      item: buildVideoMessageItem({
+        media: uploadResult.media,
+        fileSize: uploadResult.fileSize,
+        ...(durationMs !== undefined ? { durationMs } : {})
+      })
+    });
+  }
+
+  async sendFile(to: string, filePath: string, fileName?: string): Promise<SendMessageResp> {
+    const uploadResult = await this.uploadMedia(to, filePath, MediaType.FILE);
+
+    return this.send(to, {
+      item: buildFileMessageItem({
+        media: uploadResult.media,
+        fileName: fileName ?? basename(filePath),
+        fileSize: uploadResult.fileSize,
+        md5: uploadResult.md5
+      })
+    });
   }
 
   async getConfig(userId: string): Promise<GetConfigResp>;
