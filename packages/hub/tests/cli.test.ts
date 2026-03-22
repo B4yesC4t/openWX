@@ -1,3 +1,6 @@
+import { EventEmitter } from "node:events";
+
+import type { Bot, CreateBotOptions, MessageContext } from "@openwx/bot";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,6 +9,15 @@ import {
   resolveConnectorFactory,
   runCli
 } from "../src/cli.js";
+
+function createMockBot(): Bot {
+  return Object.assign(new EventEmitter(), {
+    client: {} as Bot["client"],
+    state: "idle" as const,
+    start: vi.fn(async () => undefined),
+    stop: vi.fn(async () => undefined)
+  });
+}
 
 describe("hub cli", () => {
   it("parses config and login arguments", () => {
@@ -23,8 +35,10 @@ describe("hub cli", () => {
 
   it("loads routes, connectors, and bot startup dependencies in order", async () => {
     const events: string[] = [];
-    const reply = vi.fn();
-    let capturedOnMessage: ((ctx: { userId: string; text?: string; reply(text: string): Promise<void> }) => Promise<void>) | undefined;
+    const reply = vi.fn(async (text: string) => {
+      void text;
+    });
+    let capturedOnMessage: CreateBotOptions["onMessage"];
 
     const runtime = await createHubRuntime(
       {
@@ -57,15 +71,7 @@ describe("hub cli", () => {
         botFactory: (options) => {
           events.push("createBot");
           capturedOnMessage = options.onMessage;
-          return {
-            client: {} as never,
-            state: "idle",
-            start: vi.fn(),
-            stop: vi.fn(),
-            on: vi.fn(),
-            once: vi.fn(),
-            off: vi.fn()
-          };
+          return createMockBot();
         }
       }
     );
@@ -73,11 +79,22 @@ describe("hub cli", () => {
     expect(events).toEqual(["load:claude-code", "load:echo", "createBot"]);
     expect(runtime.connectors.size).toBe(2);
 
-    await capturedOnMessage?.({
+    const ctx: MessageContext = {
+      message: {} as MessageContext["message"],
       userId: "wechat-user",
       text: "/ai hello",
-      reply
-    });
+      client: {} as MessageContext["client"],
+      reply,
+      replyImage: vi.fn(async (path: string) => {
+        void path;
+      }),
+      replyFile: vi.fn(async (path: string, name?: string) => {
+        void path;
+        void name;
+      })
+    };
+
+    await capturedOnMessage?.(ctx);
 
     expect(reply).toHaveBeenCalledWith("claude-code:sonnet");
     expect(events).toContain("handle:claude-code:hello");
