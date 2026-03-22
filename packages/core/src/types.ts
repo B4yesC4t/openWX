@@ -1,5 +1,6 @@
 import type { SessionGuard } from "./session.js";
-import type { SyncBufferStore } from "./store.js";
+import type { Store, SyncBufferStore } from "./store.js";
+import type { BuiltInQRDisplay, QRDisplayProvider } from "./qr-display.js";
 
 /**
  * Shared scaffold shape kept for modules that are not implemented in this ticket.
@@ -461,8 +462,15 @@ export interface ILinkClientOptions {
   readonly channelVersion?: string;
   /** Persistence identity used for sync-buf storage and session cooldowns. */
   readonly accountId?: string;
-  /** Optional injected sync-buf persistence implementation. */
-  readonly store?: SyncBufferStore;
+  /** Optional store implementation for tokens and get_updates_buf persistence. */
+  readonly store?: Store;
+  /** QR display strategy used during `login()`. */
+  readonly qrDisplay?: QRDisplayProvider | BuiltInQRDisplay;
+  /**
+   * Optional injected sync-buf persistence implementation kept for compatibility with
+   * polling-focused callers. When `store` is provided, it is used for both account and cursor state.
+   */
+  readonly syncStore?: SyncBufferStore;
   /** Optional injected session cooldown guard. */
   readonly sessionGuard?: SessionGuard;
 }

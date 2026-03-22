@@ -12,6 +12,7 @@ export * from "./client.js";
 export * from "./crypto.js";
 export * from "./media.js";
 export * from "./polling.js";
+export * from "./qr-display.js";
 export * from "./send.js";
 export * from "./session.js";
 export * from "./store.js";
