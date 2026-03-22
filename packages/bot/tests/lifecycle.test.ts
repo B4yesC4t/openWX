@@ -11,7 +11,8 @@ import {
   FakeSignalProcess,
   createImageInboundFixture,
   createTextInboundMessage,
-  flushAsyncWork
+  flushAsyncWork,
+  waitForAssertion
 } from "./test-helpers.js";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -206,11 +207,11 @@ describe("bot lifecycle", () => {
 
     await bot.start();
     client.emitMessage(fixture.message);
-    await flushAsyncWork();
-
-    expect(onMessage).toHaveBeenCalledTimes(1);
-    expect(onMessage.mock.calls[0]?.[0].media?.filePath).toBeTruthy();
-    expect(downloadedContents).toBe("test-image");
+    await waitForAssertion(() => {
+      expect(onMessage).toHaveBeenCalledTimes(1);
+      expect(onMessage.mock.calls[0]?.[0].media?.filePath).toBeTruthy();
+      expect(downloadedContents).toBe("test-image");
+    });
 
     await bot.stop();
   });
