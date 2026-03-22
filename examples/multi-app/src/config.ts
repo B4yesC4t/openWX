@@ -3,8 +3,6 @@ import { readFileSync } from "node:fs";
 import { defineHubConfig, type HubConfig } from "@openwx/hub";
 import YAML from "yaml";
 
-export const HELP_COMMAND = "show-help";
-
 export function loadHubConfig(filePath: string): HubConfig {
   return parseHubConfig(readFileSync(filePath, "utf8"));
 }

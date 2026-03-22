@@ -1,6 +1,6 @@
 # @openwx/hub
 
-Routing and configuration scaffold for multi-application openWX deployments.
+Routing and configuration runtime for multi-application openWX deployments.
 
 ## Install
 
@@ -11,30 +11,33 @@ pnpm add @openwx/hub
 ## API
 
 - `defineHubConfig(config)`: type-safe route declaration helper
-- `createRouter(config)`: returns a lightweight router scaffold summary
-- `createHubScaffold(config)`: bundles config and router metadata
+- `createRouter(config)`: builds the ordered route matcher
+- `describeHub(config)`: returns config plus router metadata for inspection
+- `createHub(config)`: creates the runnable hub runtime
 
 ## Example
 
 ```ts
-import { createHubScaffold, defineHubConfig } from "@openwx/hub";
+import { defineHubConfig, describeHub } from "@openwx/hub";
 
 const config = defineHubConfig({
   routes: [
     {
       prefix: "/ops",
-      target: { type: "http", url: "https://example.internal/openwx" }
+      handler: "http-proxy",
+      config: { endpoint: "https://example.internal/openwx" }
     }
-  ],
-  defaultRoute: { type: "connector", name: "@openwx/connector-echo" }
+  ]
 });
 
-const hub = createHubScaffold(config);
+const hub = describeHub(config);
 console.log(hub.router.routeCount);
 ```
 
-## Route Targets
+## Route Matchers
 
-- `connector`: send traffic to a named connector package
-- `http`: send traffic to an upstream HTTP endpoint
-- `command`: send traffic to a local command runner
+- `prefix`: match a leading command and optionally strip it before dispatch
+- `keywords`: match when any configured keyword is present
+- `users`: pin specific WeChat user IDs to one handler
+- `pattern`: match a validated regular expression
+- `default`: fallback route when nothing else matches
