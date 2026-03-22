@@ -1,12 +1,5 @@
 routes:
   - prefix: /ai
-    target:
-      type: connector
-      name: "@openwx/connector-claude-code"
+    handler: claude-code
   - prefix: /echo
-    target:
-      type: connector
-      name: "@openwx/connector-echo"
-defaultRoute:
-  type: command
-  command: show-help
+    handler: echo
