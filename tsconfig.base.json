@@ -19,6 +19,7 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
+      "@openwx/connectors": ["packages/connectors/src/index.ts"],
       "@openwx/core": ["packages/core/src/index.ts"],
       "@openwx/bot": ["packages/bot/src/index.ts"],
       "@openwx/hub": ["packages/hub/src/index.ts"],
