@@ -11,8 +11,7 @@ import {
   FakeSignalProcess,
   createImageInboundFixture,
   createTextInboundMessage,
-  flushAsyncWork,
-  waitForAssertion
+  flushAsyncWork
 } from "./test-helpers.js";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -207,13 +206,11 @@ describe("bot lifecycle", () => {
 
     await bot.start();
     client.emitMessage(fixture.message);
-    await waitForAssertion(() => {
-      expect(onMessage).toHaveBeenCalledTimes(1);
-      expect(onMessage.mock.calls[0]?.[0].media?.filePath).toBeTruthy();
-      expect(downloadedContents).toBe("test-image");
-    });
-
     await bot.stop();
+
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage.mock.calls[0]?.[0].media?.filePath).toBeTruthy();
+    expect(downloadedContents).toBe("test-image");
   });
 
   it("uploads media for replyImage and sends the resulting image item", async () => {
@@ -257,7 +254,7 @@ describe("bot lifecycle", () => {
 
     await bot.start();
     client.emitMessage(createTextInboundMessage("image"));
-    await flushAsyncWork();
+    await bot.stop();
 
     expect(client.apiFetchCalls[0]?.endpoint).toBe("getuploadurl");
     expect(client.sendCalls).toHaveLength(1);
@@ -274,7 +271,5 @@ describe("bot lifecycle", () => {
         }
       }
     });
-
-    await bot.stop();
   });
 });
