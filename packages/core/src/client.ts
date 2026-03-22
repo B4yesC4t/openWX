@@ -15,8 +15,6 @@ import {
 import {
   InboundMessageItemKind,
   MessageItemType,
-  MessageState,
-  MessageType,
   createScaffoldModule,
   type GetConfigReq,
   type GetConfigResp,
@@ -30,6 +28,7 @@ import {
   type OutboundMessage,
   type PollOptions,
   type PollResult,
+  type SendTextOptions,
   type SendMessageReq,
   type SendMessageResp,
   type SendTypingReq,
@@ -39,6 +38,12 @@ import {
   type WeixinMessage
 } from "./types.js";
 import { resolveQRDisplayProvider, type QRDisplayProvider } from "./qr-display.js";
+import {
+  buildGetConfigRequest,
+  buildSendMessageRequest,
+  buildSendTypingRequest,
+  inferMessageItemType
+} from "./send.js";
 import {
   DEFAULT_STORE_DIR,
   FileSystemStore,
@@ -101,34 +106,6 @@ function trimTrailingSlash(value: string): string {
 
 function isRecord(value: unknown): value is RequestBody {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function inferMessageItemType(item: MessageItem): MessageItemTypeValue {
-  if (item.type !== undefined) {
-    return item.type;
-  }
-
-  if (item.text_item) {
-    return MessageItemType.TEXT;
-  }
-
-  if (item.image_item) {
-    return MessageItemType.IMAGE;
-  }
-
-  if (item.voice_item) {
-    return MessageItemType.VOICE;
-  }
-
-  if (item.file_item) {
-    return MessageItemType.FILE;
-  }
-
-  if (item.video_item) {
-    return MessageItemType.VIDEO;
-  }
-
-  throw new Error("Outbound message item is missing a recognizable item payload.");
 }
 
 function inferInboundMessageItemKind(item: MessageItem): InboundMessageItemKindValue | undefined {
@@ -223,6 +200,7 @@ export class ILinkClient extends EventEmitter {
   readonly options: ResolvedClientOptions;
 
   private readonly contextTokens = new Map<string, string>();
+  private readonly configCache = new Map<string, Promise<GetConfigResp>>();
   private readonly activeControllers = new Set<AbortController>();
   private readonly store: Store;
   private readonly qrDisplay: QRDisplayProvider;
@@ -423,39 +401,65 @@ export class ILinkClient extends EventEmitter {
   }
 
   async send(to: string, message: OutboundMessage): Promise<SendMessageResp> {
-    const item = this.buildOutboundItem(message);
-    const request: SendMessageReq = {
-      msg: {
-        from_user_id: "",
-        to_user_id: to,
-        client_id: message.clientId ?? crypto.randomUUID(),
-        message_type: MessageType.BOT,
-        message_state: MessageState.FINISH,
-        context_token: this.getRequiredContextToken(to),
-        item_list: [
-          {
-            ...item,
-            type: inferMessageItemType(item)
-          }
-        ]
-      }
-    };
+    const request = buildSendMessageRequest({
+      to,
+      message,
+      contextToken: this.getRequiredContextToken(to)
+    });
 
     return this.apiFetch<SendMessageResp, SendMessageReq>("sendmessage", request);
   }
 
-  async sendText(to: string, text: string, clientId?: string): Promise<SendMessageResp> {
-    return this.send(to, clientId === undefined ? { text } : { text, clientId });
+  async sendText(to: string, text: string, clientId?: string): Promise<SendMessageResp>;
+  async sendText(to: string, text: string, options?: SendTextOptions): Promise<SendMessageResp>;
+  async sendText(
+    to: string,
+    text: string,
+    options?: string | SendTextOptions
+  ): Promise<SendMessageResp> {
+    const message: OutboundMessage =
+      typeof options === "string"
+        ? { text, clientId: options }
+        : {
+            text,
+            ...(options ?? {})
+          };
+
+    return this.send(to, message);
   }
 
-  async getConfig(request: GetConfigReq): Promise<GetConfigResp> {
-    return this.apiFetch<GetConfigResp, GetConfigReq>("getconfig", request, {
+  async getConfig(userId: string): Promise<GetConfigResp>;
+  async getConfig(request: GetConfigReq): Promise<GetConfigResp>;
+  async getConfig(requestOrUserId: string | GetConfigReq): Promise<GetConfigResp> {
+    if (typeof requestOrUserId === "string") {
+      return this.getCachedConfig(requestOrUserId);
+    }
+
+    return this.apiFetch<GetConfigResp, GetConfigReq>("getconfig", requestOrUserId, {
       requestKind: "light"
     });
   }
 
-  async sendTyping(request: SendTypingReq): Promise<SendTypingResp> {
-    return this.apiFetch<SendTypingResp, SendTypingReq>("sendtyping", request, {
+  async sendTyping(to: string): Promise<SendTypingResp>;
+  async sendTyping(request: SendTypingReq): Promise<SendTypingResp>;
+  async sendTyping(requestOrUserId: string | SendTypingReq): Promise<SendTypingResp> {
+    if (typeof requestOrUserId === "string") {
+      return this.sendTypingStatus(requestOrUserId, "typing");
+    }
+
+    return this.apiFetch<SendTypingResp, SendTypingReq>("sendtyping", requestOrUserId, {
+      requestKind: "light"
+    });
+  }
+
+  async cancelTyping(to: string): Promise<SendTypingResp>;
+  async cancelTyping(request: SendTypingReq): Promise<SendTypingResp>;
+  async cancelTyping(requestOrUserId: string | SendTypingReq): Promise<SendTypingResp> {
+    if (typeof requestOrUserId === "string") {
+      return this.sendTypingStatus(requestOrUserId, "cancel");
+    }
+
+    return this.apiFetch<SendTypingResp, SendTypingReq>("sendtyping", requestOrUserId, {
       requestKind: "light"
     });
   }
@@ -471,6 +475,7 @@ export class ILinkClient extends EventEmitter {
     }
     this.activeControllers.clear();
     this.contextTokens.clear();
+    this.configCache.clear();
     this.emit("stopped");
     this.removeAllListeners();
   }
@@ -597,6 +602,13 @@ export class ILinkClient extends EventEmitter {
     return messages.map((message) => {
       const parsed = this.parseInboundMessage(message);
       if (parsed.fromUserId && parsed.contextToken) {
+        const previousContextToken = this.contextTokens.get(parsed.fromUserId);
+        if (
+          previousContextToken !== undefined &&
+          previousContextToken !== parsed.contextToken
+        ) {
+          this.configCache.delete(parsed.fromUserId);
+        }
         this.contextTokens.set(parsed.fromUserId, parsed.contextToken);
       }
       this.emit("message", parsed);
@@ -635,25 +647,40 @@ export class ILinkClient extends EventEmitter {
     return contextToken;
   }
 
-  private buildOutboundItem(message: OutboundMessage): MessageItem {
-    if (message.item && message.text) {
-      throw new Error("OutboundMessage cannot provide both text and item.");
+  private async getCachedConfig(userId: string): Promise<GetConfigResp> {
+    const cachedConfig = this.configCache.get(userId);
+    if (cachedConfig) {
+      return cachedConfig;
     }
 
-    if (message.item) {
-      return message.item;
+    const request = buildGetConfigRequest(userId, this.getRequiredContextToken(userId));
+    const pendingConfig = this.apiFetch<GetConfigResp, GetConfigReq>("getconfig", request, {
+      requestKind: "light"
+    }).catch((error) => {
+      this.configCache.delete(userId);
+      throw error;
+    });
+
+    this.configCache.set(userId, pendingConfig);
+    return pendingConfig;
+  }
+
+  private async sendTypingStatus(
+    userId: string,
+    status: "typing" | "cancel"
+  ): Promise<SendTypingResp> {
+    const config = await this.getCachedConfig(userId);
+    if (!config.typing_ticket) {
+      throw new Error(`No typing_ticket for user ${userId}.`);
     }
 
-    if (message.text !== undefined) {
-      return {
-        type: MessageItemType.TEXT,
-        text_item: {
-          text: message.text
-        }
-      };
-    }
-
-    throw new Error("OutboundMessage requires either text or item.");
+    return this.apiFetch<SendTypingResp, SendTypingReq>(
+      "sendtyping",
+      buildSendTypingRequest(userId, config.typing_ticket, status),
+      {
+        requestKind: "light"
+      }
+    );
   }
 
   private markReady(): void {
