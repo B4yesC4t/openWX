@@ -1,17 +1,35 @@
 {
   "name": "openwx",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "TypeScript SDK monorepo for connecting applications and AI agents to WeChat through the official iLink Bot API.",
+  "keywords": [
+    "wechat",
+    "ilink",
+    "bot",
+    "sdk",
+    "typescript",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/B4yesC4t/openWX.git"
+  },
+  "bugs": {
+    "url": "https://github.com/B4yesC4t/openWX/issues"
+  },
+  "homepage": "https://github.com/B4yesC4t/openWX#readme",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.12.1",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
   "scripts": {
     "build": "node ./scripts/run-workspace-script.mjs build",
     "typecheck": "node ./scripts/run-workspace-script.mjs typecheck",
-    "lint": "node ./scripts/run-workspace-script.mjs lint",
-    "test": "node ./scripts/run-workspace-script.mjs test",
+    "lint": "eslint tests vitest.config.ts && node ./scripts/run-workspace-script.mjs lint",
+    "test": "vitest run --config vitest.config.ts && node ./scripts/run-workspace-script.mjs test",
     "dev": "node ./scripts/run-workspace-script.mjs dev --parallel",
     "format": "prettier . --check"
   },
