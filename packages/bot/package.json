@@ -1,0 +1,29 @@
+{
+  "name": "@openwx/bot",
+  "version": "0.0.0",
+  "description": "Bot framework scaffold for openWX.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@openwx/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --tsconfig tsconfig.build.json",
+    "dev": "tsup src/index.ts --format esm --dts --watch --out-dir dist --tsconfig tsconfig.build.json",
+    "lint": "eslint src tests",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
