@@ -2,6 +2,7 @@ import * as crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 
 import {
+  InboundMessageItemKind,
   MessageItemType,
   MessageState,
   MessageType,
@@ -10,6 +11,8 @@ import {
   type GetUpdatesResp,
   type ILinkClientEvents,
   type ILinkClientOptions,
+  type InboundMessage,
+  type InboundMessageItemKindValue,
   type MessageItem,
   type MessageItemTypeValue,
   type OutboundMessage,
@@ -19,19 +22,26 @@ import {
   type SendMessageResp,
   type SendTypingReq,
   type SendTypingResp,
+  type StartPollingOptions,
   type WeixinMessage
 } from "./types.js";
 import { createScaffoldModule, type ScaffoldModule } from "./types.js";
+import {
+  DEFAULT_LONG_POLL_TIMEOUT_MS,
+  LONG_POLL_REQUEST_GRACE_MS,
+  PollingEngine
+} from "./polling.js";
+import { SESSION_EXPIRED_CODE, SessionGuard } from "./session.js";
+import { DEFAULT_STORE_DIR, FileSyncBufferStore, type SyncBufferStore } from "./store.js";
 
 export const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
 export const DEFAULT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
-export const DEFAULT_STORE_DIR = "~/.openwx";
 export const DEFAULT_CHANNEL_VERSION = "1.0.0";
-export const ILINK_BOT_TYPE = "3";
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
-export const DEFAULT_LONG_POLL_TIMEOUT_MS = 35_000;
 export const DEFAULT_LIGHT_REQUEST_TIMEOUT_MS = 10_000;
-export const SESSION_EXPIRED_ERRCODE = -14;
+export const DEFAULT_ACCOUNT_ID = "default";
+export const ILINK_BOT_TYPE = "3";
+export const SESSION_EXPIRED_ERRCODE = SESSION_EXPIRED_CODE;
 
 interface ApiFetchOptions {
   readonly timeoutMs?: number;
@@ -46,6 +56,9 @@ interface ResolvedClientOptions {
   storeDir: string;
   skRouteTag: string;
   channelVersion: string;
+  accountId: string;
+  store: SyncBufferStore;
+  sessionGuard: SessionGuard;
 }
 
 type RequestBody = Record<string, unknown>;
@@ -98,8 +111,91 @@ function inferMessageItemType(item: MessageItem): MessageItemTypeValue {
   throw new Error("Outbound message item is missing a recognizable item payload.");
 }
 
+function inferInboundMessageItemKind(item: MessageItem): InboundMessageItemKindValue | undefined {
+  const type = inferMessageItemTypeSafe(item);
+  switch (type) {
+    case MessageItemType.IMAGE:
+      return InboundMessageItemKind.IMAGE;
+    case MessageItemType.VIDEO:
+      return InboundMessageItemKind.VIDEO;
+    case MessageItemType.FILE:
+      return InboundMessageItemKind.FILE;
+    case MessageItemType.VOICE:
+      return InboundMessageItemKind.VOICE;
+    case MessageItemType.TEXT:
+      return InboundMessageItemKind.TEXT;
+    default:
+      return undefined;
+  }
+}
+
+function inferMessageItemTypeSafe(item: MessageItem): MessageItemTypeValue | undefined {
+  try {
+    return inferMessageItemType(item);
+  } catch {
+    return undefined;
+  }
+}
+
 function buildAbortReason(timeoutMs: number): DOMException {
   return new DOMException(`Request timed out after ${timeoutMs}ms`, "AbortError");
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
+}
+
+function formatQuotedText(item?: MessageItem, title?: string): string | undefined {
+  const quotedText = item?.text_item?.text ?? item?.voice_item?.text;
+  if (!title && !quotedText) {
+    return undefined;
+  }
+
+  const summary = [title, quotedText].filter(Boolean).join(" | ");
+  return summary.length > 0 ? `[引用: ${summary}]` : undefined;
+}
+
+function extractMessageText(items: readonly MessageItem[]): string | undefined {
+  for (const item of items) {
+    const bodyText = item.text_item?.text ?? item.voice_item?.text;
+    if (!bodyText) {
+      continue;
+    }
+
+    const quote = formatQuotedText(item.ref_msg?.message_item, item.ref_msg?.title);
+    return quote ? `${quote}\n${bodyText}` : bodyText;
+  }
+
+  return undefined;
+}
+
+function selectPrimaryItem(items: readonly MessageItem[]): MessageItem | undefined {
+  const priority = [
+    MessageItemType.IMAGE,
+    MessageItemType.VIDEO,
+    MessageItemType.FILE,
+    MessageItemType.VOICE,
+    MessageItemType.TEXT
+  ] as const;
+
+  for (const type of priority) {
+    const match = items.find((item) => inferMessageItemTypeSafe(item) === type);
+    if (match) {
+      return match;
+    }
+  }
+
+  return items[0];
+}
+
+function createApiError(endpoint: string, response: GetUpdatesResp): Error {
+  const code = response.errcode ?? response.ret ?? -1;
+  const message = response.errmsg || `iLink ${endpoint} returned error code ${code}.`;
+  const error = new Error(`${endpoint} failed: ${message}`);
+  error.name = "ILinkApiError";
+  return error;
 }
 
 export class ILinkClient extends EventEmitter {
@@ -108,19 +204,37 @@ export class ILinkClient extends EventEmitter {
 
   private readonly contextTokens = new Map<string, string>();
   private readonly activeControllers = new Set<AbortController>();
+  private readonly pollingEngine: PollingEngine;
   private readyEmitted = false;
   private disposed = false;
 
   constructor(options: ILinkClientOptions = {}) {
     super();
+
+    const storeDir = options.storeDir ?? DEFAULT_STORE_DIR;
+    const store = options.store ?? new FileSyncBufferStore(storeDir);
+    const sessionGuard = options.sessionGuard ?? new SessionGuard();
+
     this.options = {
       baseUrl: trimTrailingSlash(options.baseUrl ?? DEFAULT_BASE_URL),
       cdnBaseUrl: trimTrailingSlash(options.cdnBaseUrl ?? DEFAULT_CDN_BASE_URL),
       token: options.token ?? "",
-      storeDir: options.storeDir ?? DEFAULT_STORE_DIR,
+      storeDir,
       skRouteTag: options.skRouteTag ?? "",
-      channelVersion: options.channelVersion ?? DEFAULT_CHANNEL_VERSION
+      channelVersion: options.channelVersion ?? DEFAULT_CHANNEL_VERSION,
+      accountId: options.accountId ?? DEFAULT_ACCOUNT_ID,
+      store,
+      sessionGuard
     };
+
+    this.pollingEngine = new PollingEngine({
+      accountId: this.options.accountId,
+      client: {
+        poll: (pollOptions?: PollOptions) => this.performPoll(pollOptions)
+      },
+      store: this.options.store,
+      sessionGuard: this.options.sessionGuard
+    });
   }
 
   on<E extends keyof ILinkClientEvents>(
@@ -211,7 +325,9 @@ export class ILinkClient extends EventEmitter {
       this.markReady();
       return parsed;
     } catch (error) {
-      this.emitError(error);
+      if (this.shouldEmitError(error, options)) {
+        this.emitError(error);
+      }
       throw error;
     } finally {
       clearTimeout(timeoutId);
@@ -223,57 +339,11 @@ export class ILinkClient extends EventEmitter {
   }
 
   async poll(options: PollOptions = {}): Promise<PollResult> {
-    const fetchOptions: {
-      requestKind: "long-poll";
-      timeoutMs?: number;
-      signal?: AbortSignal;
-    } = {
-      requestKind: "long-poll"
-    };
+    return this.pollingEngine.poll(options);
+  }
 
-    if (options.timeoutMs !== undefined) {
-      fetchOptions.timeoutMs = options.timeoutMs;
-    }
-
-    if (options.signal !== undefined) {
-      fetchOptions.signal = options.signal;
-    }
-
-    const response = await this.apiFetch<GetUpdatesResp>(
-      "getupdates",
-      {
-        get_updates_buf: options.getUpdatesBuf ?? ""
-      },
-      fetchOptions
-    );
-
-    if (response.errcode === SESSION_EXPIRED_ERRCODE) {
-      this.emit("sessionExpired");
-      return {
-        messages: [],
-        sessionExpired: true,
-        ...(response.get_updates_buf !== undefined
-          ? { getUpdatesBuf: response.get_updates_buf }
-          : {}),
-        ...(response.longpolling_timeout_ms !== undefined
-          ? { longPollingTimeoutMs: response.longpolling_timeout_ms }
-          : {})
-      };
-    }
-
-    const messages = response.msgs ?? [];
-    this.ingestMessages(messages);
-
-    return {
-      messages,
-      sessionExpired: false,
-      ...(response.get_updates_buf !== undefined
-        ? { getUpdatesBuf: response.get_updates_buf }
-        : {}),
-      ...(response.longpolling_timeout_ms !== undefined
-        ? { longPollingTimeoutMs: response.longpolling_timeout_ms }
-        : {})
-    };
+  async startPolling(options: StartPollingOptions = {}): Promise<void> {
+    await this.pollingEngine.startPolling(options);
   }
 
   async send(to: string, message: OutboundMessage): Promise<SendMessageResp> {
@@ -329,13 +399,77 @@ export class ILinkClient extends EventEmitter {
     this.removeAllListeners();
   }
 
+  private async performPoll(options: PollOptions = {}): Promise<PollResult> {
+    const timeoutMs = options.timeoutMs ?? DEFAULT_LONG_POLL_TIMEOUT_MS;
+
+    let response: GetUpdatesResp;
+    try {
+      response = await this.apiFetch<GetUpdatesResp>(
+        "getupdates",
+        {
+          get_updates_buf: options.getUpdatesBuf ?? "",
+          timeout: timeoutMs
+        },
+        {
+          requestKind: "long-poll",
+          timeoutMs: timeoutMs + LONG_POLL_REQUEST_GRACE_MS,
+          ...(options.signal ? { signal: options.signal } : {})
+        }
+      );
+    } catch (error) {
+      if (isAbortError(error) && !options.signal?.aborted) {
+        return {
+          messages: [],
+          rawMessages: [],
+          sessionExpired: false
+        };
+      }
+
+      throw error;
+    }
+
+    const errorCode = response.errcode ?? response.ret ?? 0;
+    if (errorCode === SESSION_EXPIRED_CODE) {
+      this.options.sessionGuard.pause(this.options.accountId);
+      this.emit("sessionExpired", this.options.accountId);
+      return {
+        messages: [],
+        rawMessages: [],
+        sessionExpired: true,
+        ...(response.get_updates_buf !== undefined
+          ? { getUpdatesBuf: response.get_updates_buf }
+          : {}),
+        ...(response.longpolling_timeout_ms !== undefined
+          ? { longPollingTimeoutMs: response.longpolling_timeout_ms }
+          : {})
+      };
+    }
+
+    if ((response.errcode ?? 0) !== 0 || (response.ret ?? 0) !== 0) {
+      throw createApiError("getupdates", response);
+    }
+
+    const rawMessages = response.msgs ?? [];
+    const messages = this.ingestMessages(rawMessages);
+
+    return {
+      messages,
+      rawMessages,
+      sessionExpired: false,
+      ...(response.get_updates_buf !== undefined ? { getUpdatesBuf: response.get_updates_buf } : {}),
+      ...(response.longpolling_timeout_ms !== undefined
+        ? { longPollingTimeoutMs: response.longpolling_timeout_ms }
+        : {})
+    };
+  }
+
   private resolveTimeout(requestKind: ApiFetchOptions["requestKind"]): number {
     if (requestKind === "light") {
       return DEFAULT_LIGHT_REQUEST_TIMEOUT_MS;
     }
 
     if (requestKind === "long-poll") {
-      return DEFAULT_LONG_POLL_TIMEOUT_MS;
+      return DEFAULT_LONG_POLL_TIMEOUT_MS + LONG_POLL_REQUEST_GRACE_MS;
     }
 
     return DEFAULT_REQUEST_TIMEOUT_MS;
@@ -383,13 +517,36 @@ export class ILinkClient extends EventEmitter {
     };
   }
 
-  private ingestMessages(messages: WeixinMessage[]): void {
-    for (const message of messages) {
-      if (message.from_user_id && message.context_token) {
-        this.contextTokens.set(message.from_user_id, message.context_token);
+  private ingestMessages(messages: readonly WeixinMessage[]): InboundMessage[] {
+    return messages.map((message) => {
+      const parsed = this.parseInboundMessage(message);
+      if (parsed.fromUserId && parsed.contextToken) {
+        this.contextTokens.set(parsed.fromUserId, parsed.contextToken);
       }
-      this.emit("message", message);
-    }
+      this.emit("message", parsed);
+      return parsed;
+    });
+  }
+
+  private parseInboundMessage(message: WeixinMessage): InboundMessage {
+    const itemList = message.item_list ?? [];
+    const primaryItem = selectPrimaryItem(itemList);
+    const primaryItemKind = primaryItem ? inferInboundMessageItemKind(primaryItem) : undefined;
+    const text = extractMessageText(itemList);
+
+    return {
+      raw: message,
+      itemList,
+      ...(message.from_user_id !== undefined ? { fromUserId: message.from_user_id } : {}),
+      ...(message.to_user_id !== undefined ? { toUserId: message.to_user_id } : {}),
+      ...(message.context_token !== undefined ? { contextToken: message.context_token } : {}),
+      ...(message.session_id !== undefined ? { sessionId: message.session_id } : {}),
+      ...(message.seq !== undefined ? { seq: message.seq } : {}),
+      ...(message.message_id !== undefined ? { messageId: message.message_id } : {}),
+      ...(primaryItem !== undefined ? { primaryItem } : {}),
+      ...(primaryItemKind !== undefined ? { primaryItemKind } : {}),
+      ...(text !== undefined ? { text } : {})
+    };
   }
 
   private getRequiredContextToken(userId: string): string {
@@ -437,5 +594,17 @@ export class ILinkClient extends EventEmitter {
     if (this.listenerCount("error") > 0) {
       this.emit("error", normalizedError);
     }
+  }
+
+  private shouldEmitError(error: unknown, options: ApiFetchOptions): boolean {
+    if (!isAbortError(error)) {
+      return true;
+    }
+
+    if (options.signal?.aborted || this.disposed) {
+      return false;
+    }
+
+    return options.requestKind !== "long-poll";
   }
 }

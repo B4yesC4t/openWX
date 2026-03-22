@@ -1,3 +1,6 @@
+import type { SessionGuard } from "./session.js";
+import type { SyncBufferStore } from "./store.js";
+
 /**
  * Shared scaffold shape kept for modules that are not implemented in this ticket.
  */
@@ -325,6 +328,8 @@ export interface ApiResponse {
 export interface GetUpdatesReq {
   /** Cursor returned by the previous poll. */
   get_updates_buf?: string;
+  /** Requested server long-poll timeout in milliseconds. */
+  timeout?: number;
   /** Shared request metadata. */
   base_info?: BaseInfo;
 }
@@ -454,6 +459,12 @@ export interface ILinkClientOptions {
   readonly skRouteTag?: string;
   /** Optional protocol channel version sent in `base_info`. */
   readonly channelVersion?: string;
+  /** Persistence identity used for sync-buf storage and session cooldowns. */
+  readonly accountId?: string;
+  /** Optional injected sync-buf persistence implementation. */
+  readonly store?: SyncBufferStore;
+  /** Optional injected session cooldown guard. */
+  readonly sessionGuard?: SessionGuard;
 }
 
 /**
@@ -481,11 +492,58 @@ export interface OutboundMessage {
 }
 
 /**
+ * Structured inbound item types exposed by the runtime client.
+ */
+export const InboundMessageItemKind = {
+  TEXT: "text",
+  IMAGE: "image",
+  VIDEO: "video",
+  FILE: "file",
+  VOICE: "voice"
+} as const;
+
+/**
+ * Union type for `InboundMessageItemKind`.
+ */
+export type InboundMessageItemKindValue =
+  (typeof InboundMessageItemKind)[keyof typeof InboundMessageItemKind];
+
+/**
+ * Structured inbound message emitted by the runtime client.
+ */
+export interface InboundMessage {
+  /** Original raw iLink payload. */
+  readonly raw: WeixinMessage;
+  /** Sender iLink user ID. */
+  readonly fromUserId?: string;
+  /** Receiver iLink user ID. */
+  readonly toUserId?: string;
+  /** Message context token echoed back when replying. */
+  readonly contextToken?: string;
+  /** Conversation session ID. */
+  readonly sessionId?: string;
+  /** Message sequence returned by iLink. */
+  readonly seq?: number;
+  /** Message ID returned by iLink. */
+  readonly messageId?: number;
+  /** Original item list returned by iLink. */
+  readonly itemList: readonly MessageItem[];
+  /** Highest-priority item selected from `item_list`. */
+  readonly primaryItem?: MessageItem;
+  /** Normalized type for `primaryItem`. */
+  readonly primaryItemKind?: InboundMessageItemKindValue;
+  /** Extracted textual content, including quoted text when present. */
+  readonly text?: string;
+}
+
+/**
  * Normalized result returned by `ILinkClient.poll()`.
  */
 export interface PollResult {
-  /** Messages returned by the server in this poll cycle. */
-  readonly messages: WeixinMessage[];
+  /** Structured inbound messages returned in this poll cycle. */
+  readonly messages: InboundMessage[];
+  /** Raw `getupdates` messages returned by iLink. */
+  readonly rawMessages: WeixinMessage[];
   /** Cursor to be persisted and supplied on the next poll. */
   readonly getUpdatesBuf?: string;
   /** Suggested timeout from the server when present. */
@@ -495,13 +553,25 @@ export interface PollResult {
 }
 
 /**
+ * Runtime options for the managed polling loop.
+ */
+export interface StartPollingOptions {
+  /** Optional abort signal used to stop the loop. */
+  readonly signal?: AbortSignal;
+  /** Optional initial cursor override. */
+  readonly getUpdatesBuf?: string;
+  /** Optional initial long-poll timeout override. */
+  readonly timeoutMs?: number;
+}
+
+/**
  * Typed event payloads emitted by `ILinkClient`.
  *
  * The tuple form matches Node.js `EventEmitter` argument lists.
  */
 export interface ILinkClientEvents {
   /** Fired for each inbound message returned by `poll()`. */
-  message: [message: WeixinMessage];
+  message: [message: InboundMessage];
   /** Fired when an operation fails and the error is surfaced to the caller. */
   error: [error: Error];
   /** Fired once after the first successful authenticated request. */
@@ -509,5 +579,5 @@ export interface ILinkClientEvents {
   /** Fired when `dispose()` stops the client. */
   stopped: [];
   /** Fired when `getupdates` returns `errcode=-14`. */
-  sessionExpired: [];
+  sessionExpired: [accountId: string];
 }
