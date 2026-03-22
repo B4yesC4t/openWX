@@ -20,6 +20,26 @@ const PNG_1X1 = Buffer.from(
   "base64"
 );
 
+type UploadMediaApiFetch = Parameters<typeof uploadMedia>[0]["apiFetch"];
+
+const createJsonApiFetch = (): UploadMediaApiFetch =>
+  async <TResponse, TBody extends object = Record<string, unknown>>(
+    endpoint: string,
+    body: TBody
+  ): Promise<TResponse> => {
+    expect(endpoint).toBe("getuploadurl");
+
+    const response = await fetch("https://ilinkai.weixin.qq.com/ilink/bot/getuploadurl", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    return (await response.json()) as TResponse;
+  };
+
 describe("media helpers", () => {
   beforeAll(() => {
     nock.disableNetConnect();
@@ -142,16 +162,7 @@ describe("media helpers", () => {
         fileKey: "fixed-file-key",
         randomBytes: () => rawKey,
         cdnBaseUrl: "https://cdn.example.com/c2c",
-        apiFetch: (endpoint, body) => {
-          expect(endpoint).toBe("getuploadurl");
-          return fetch("https://ilinkai.weixin.qq.com/ilink/bot/getuploadurl", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-          }).then((response) => response.json());
-        }
+        apiFetch: createJsonApiFetch()
       });
 
       expect(uploadScope.isDone()).toBe(true);
@@ -217,14 +228,7 @@ describe("media helpers", () => {
         type: "file",
         randomBytes: () => Buffer.from("fedcba9876543210"),
         cdnBaseUrl: "https://cdn.example.com/c2c",
-        apiFetch: (_endpoint, body) =>
-          fetch("https://ilinkai.weixin.qq.com/ilink/bot/getuploadurl", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-          }).then((response) => response.json())
+        apiFetch: createJsonApiFetch()
       });
 
       expect(attempts).toBe(3);
