@@ -42,20 +42,41 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/connectors:
+    dependencies:
+      '@openwx/connector-claude-code':
+        specifier: workspace:*
+        version: link:claude-code
+      '@openwx/connector-echo':
+        specifier: workspace:*
+        version: link:echo
+      '@openwx/connector-http-proxy':
+        specifier: workspace:*
+        version: link:http-proxy
+
   packages/connectors/claude-code:
     dependencies:
+      '@openwx/bot':
+        specifier: workspace:*
+        version: link:../../bot
       '@openwx/core':
         specifier: workspace:*
         version: link:../../core
 
   packages/connectors/echo:
     dependencies:
+      '@openwx/bot':
+        specifier: workspace:*
+        version: link:../../bot
       '@openwx/core':
         specifier: workspace:*
         version: link:../../core
 
   packages/connectors/http-proxy:
     dependencies:
+      '@openwx/bot':
+        specifier: workspace:*
+        version: link:../../bot
       '@openwx/core':
         specifier: workspace:*
         version: link:../../core

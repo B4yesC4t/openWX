@@ -200,6 +200,31 @@ export async function flushAsyncWork(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
+export async function waitForAssertion(
+  assertion: () => void | Promise<void>,
+  options: {
+    readonly timeoutMs?: number;
+    readonly intervalMs?: number;
+  } = {}
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 1_000;
+  const intervalMs = options.intervalMs ?? 20;
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+
+  while (Date.now() <= deadline) {
+    try {
+      await assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  throw lastError ?? new Error(`Timed out after ${timeoutMs}ms waiting for assertion.`);
+}
+
 function encryptAesEcb(plaintext: Buffer, key: Buffer): Buffer {
   const cipher = crypto.createCipheriv("aes-128-ecb", key, null);
   return Buffer.concat([cipher.update(plaintext), cipher.final()]);

@@ -40,6 +40,7 @@
   },
   "homepage": "https://github.com/B4yesC4t/openWX#readme",
   "dependencies": {
+    "@openwx/bot": "workspace:*",
     "@openwx/core": "workspace:*"
   },
   "scripts": {
