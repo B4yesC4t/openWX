@@ -14,10 +14,17 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "openwx-hub": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
     }
   },
   "files": [
@@ -41,11 +48,12 @@
   "homepage": "https://github.com/B4yesC4t/openWX#readme",
   "dependencies": {
     "@openwx/bot": "workspace:*",
-    "@openwx/core": "workspace:*"
+    "@openwx/core": "workspace:*",
+    "yaml": "^2.8.3"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --tsconfig tsconfig.build.json",
-    "dev": "tsup src/index.ts --format esm --dts --watch --out-dir dist --tsconfig tsconfig.build.json",
+    "build": "tsup src/index.ts src/cli.ts --format esm --dts --clean --out-dir dist --tsconfig tsconfig.build.json",
+    "dev": "tsup src/index.ts src/cli.ts --format esm --dts --watch --out-dir dist --tsconfig tsconfig.build.json",
     "lint": "eslint src tests",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
