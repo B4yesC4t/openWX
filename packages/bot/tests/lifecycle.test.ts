@@ -14,6 +14,8 @@ import {
   flushAsyncWork
 } from "./test-helpers.js";
 
+type FetchInput = Parameters<typeof fetch>[0];
+
 describe("bot lifecycle", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -184,7 +186,7 @@ describe("bot lifecycle", () => {
     const onMessage = vi.fn(async (ctx) => {
       downloadedContents = await readFile(ctx.media?.filePath ?? "", "utf8");
     });
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: FetchInput) => {
       expect(String(input)).toContain("/download?");
       return new Response(fixture.encrypted, {
         status: 200
@@ -228,7 +230,7 @@ describe("bot lifecycle", () => {
     const tempFilePath = path.join(os.tmpdir(), `openwx-bot-image-${Date.now()}.txt`);
     await writeFile(tempFilePath, "image-bytes");
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
       expect(String(input)).toContain("/upload?");
       expect(init?.method).toBe("POST");
       return new Response(null, {

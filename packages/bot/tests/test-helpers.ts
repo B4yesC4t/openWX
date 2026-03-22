@@ -123,6 +123,12 @@ export class FakeClient extends EventEmitter implements BotClient {
 }
 
 export function createTextInboundMessage(text: string): InboundMessage {
+  const item: MessageItem = {
+    type: MessageItemType.TEXT,
+    text_item: {
+      text
+    }
+  };
   const raw = {
     from_user_id: "user-1@im.wechat",
     to_user_id: "bot-account@im.bot",
@@ -130,14 +136,7 @@ export function createTextInboundMessage(text: string): InboundMessage {
     message_type: MessageType.USER,
     message_state: MessageState.FINISH,
     context_token: "ctx-1",
-    item_list: [
-      {
-        type: MessageItemType.TEXT,
-        text_item: {
-          text
-        }
-      }
-    ]
+    item_list: [item]
   };
 
   return {
@@ -147,7 +146,7 @@ export function createTextInboundMessage(text: string): InboundMessage {
     contextToken: raw.context_token,
     messageId: raw.message_id,
     itemList: raw.item_list,
-    primaryItem: raw.item_list[0],
+    primaryItem: item,
     primaryItemKind: "text",
     text
   };
@@ -161,6 +160,16 @@ export function createImageInboundFixture(
 } {
   const aesKey = crypto.randomBytes(16);
   const encrypted = encryptAesEcb(plaintext, aesKey);
+  const item: MessageItem = {
+    type: MessageItemType.IMAGE,
+    image_item: {
+      media: {
+        encrypt_query_param: "download-param",
+        aes_key: aesKey.toString("base64"),
+        encrypt_type: 1
+      }
+    }
+  };
   const raw = {
     from_user_id: "user-2@im.wechat",
     to_user_id: "bot-account@im.bot",
@@ -168,18 +177,7 @@ export function createImageInboundFixture(
     message_type: MessageType.USER,
     message_state: MessageState.FINISH,
     context_token: "ctx-2",
-    item_list: [
-      {
-        type: MessageItemType.IMAGE,
-        image_item: {
-          media: {
-            encrypt_query_param: "download-param",
-            aes_key: aesKey.toString("base64"),
-            encrypt_type: 1
-          }
-        }
-      }
-    ]
+    item_list: [item]
   };
 
   return {
@@ -190,7 +188,7 @@ export function createImageInboundFixture(
       contextToken: raw.context_token,
       messageId: raw.message_id,
       itemList: raw.item_list,
-      primaryItem: raw.item_list[0],
+      primaryItem: item,
       primaryItemKind: "image"
     },
     encrypted
