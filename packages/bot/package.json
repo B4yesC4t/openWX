@@ -1,7 +1,16 @@
 {
   "name": "@openwx/bot",
-  "version": "0.0.0",
-  "description": "Bot framework scaffold for openWX.",
+  "version": "0.1.0",
+  "description": "High-level createBot lifecycle and handler framework for openWX.",
+  "keywords": [
+    "openwx",
+    "wechat",
+    "bot",
+    "agent",
+    "framework",
+    "ilink"
+  ],
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,11 +20,25 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/B4yesC4t/openWX.git",
+    "directory": "packages/bot"
+  },
+  "bugs": {
+    "url": "https://github.com/B4yesC4t/openWX/issues"
+  },
+  "homepage": "https://github.com/B4yesC4t/openWX#readme",
   "dependencies": {
     "@openwx/core": "workspace:*"
   },

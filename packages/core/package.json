@@ -1,7 +1,16 @@
 {
   "name": "@openwx/core",
-  "version": "0.0.0",
-  "description": "Core protocol scaffold for openWX.",
+  "version": "0.1.0",
+  "description": "Protocol-facing iLink Bot API client, auth, polling, media, and persistence helpers for openWX.",
+  "keywords": [
+    "openwx",
+    "wechat",
+    "ilink",
+    "bot",
+    "sdk",
+    "protocol"
+  ],
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,8 +25,20 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/B4yesC4t/openWX.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/B4yesC4t/openWX/issues"
+  },
+  "homepage": "https://github.com/B4yesC4t/openWX#readme",
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist",
     "dev": "tsup src/index.ts --format esm --dts --watch --out-dir dist",
