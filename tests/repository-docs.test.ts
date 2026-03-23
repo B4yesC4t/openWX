@@ -12,6 +12,9 @@ const markdownFiles = [
   "SECURITY.md",
   "CHANGELOG.md",
   ".github/PULL_REQUEST_TEMPLATE.md",
+  ".claude/skills/wechat-integration/SKILL.md",
+  ".claude/skills/wechat-integration/examples.md",
+  ".claude/skills/wechat-integration/troubleshooting.md",
   "packages/core/README.md",
   "packages/bot/README.md",
   "packages/hub/README.md",
@@ -80,6 +83,40 @@ describe("repository documentation", () => {
     expect(contributing).toContain("## Code Style");
     expect(contributing).toContain("## Testing Requirements");
     expect(contributing).toContain("## Commit Message Format");
+  });
+
+  it("documents the Claude Code wechat integration skill and its support files", async () => {
+    const skill = await readRepoFile(".claude/skills/wechat-integration/SKILL.md");
+    const examples = await readRepoFile(".claude/skills/wechat-integration/examples.md");
+    const troubleshooting = await readRepoFile(
+      ".claude/skills/wechat-integration/troubleshooting.md"
+    );
+
+    expect(skill.startsWith("---\nname: wechat-integration\n")).toBe(true);
+    expect(skill).toContain("description:");
+    expect(skill).toContain("微信");
+    expect(skill).toContain("WeChat");
+    expect(skill).toContain("DEVELOPMENT.md");
+    expect(skill).toContain("packages/bot/src/create-bot.ts");
+    expect(skill).toContain("packages/hub/src/config.ts");
+    expect(skill).toContain("packages/connectors/http-proxy/src/index.ts");
+    expect(skill).toContain("接入模式");
+    expect(skill).toContain("后端选择");
+    expect(skill).toContain("多用户");
+    expect(skill).toContain("媒体");
+    expect(skill).toContain("询问 -> 执行 -> 验证");
+    expect(skill).toContain("[examples.md](examples.md)");
+    expect(skill).toContain("[troubleshooting.md](troubleshooting.md)");
+
+    expect(examples).toContain("## 场景一：纯聊天 Bot");
+    expect(examples).toContain("## 场景二：AI 助手 Bot");
+    expect(examples).toContain("## 场景三：现有 HTTP 服务接入");
+
+    expect(troubleshooting).toContain("context_token");
+    expect(troubleshooting).toContain("get_updates_buf");
+    expect(troubleshooting).toContain("X-WECHAT-UIN");
+    expect(troubleshooting).toContain("aes_key");
+    expect(troubleshooting).toContain("errcode = -14");
   });
 });
 
