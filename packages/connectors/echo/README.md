@@ -12,6 +12,7 @@ pnpm add @openwx/connector-echo
 
 ```ts
 function createEchoConnector(): Connector;
+function createHandler(): MessageHandler;
 ```
 
 ## Example

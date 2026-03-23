@@ -36,6 +36,25 @@ importers:
         specifier: 4.1.0
         version: 4.1.0(@types/node@25.5.0)(esbuild@0.27.4)(tsx@4.20.6)(yaml@2.8.3)
 
+  examples/assistant:
+    dependencies:
+      dotenv:
+        specifier: 17.2.3
+        version: 17.2.3
+    devDependencies:
+      '@types/node':
+        specifier: 25.5.0
+        version: 25.5.0
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@25.5.0)(esbuild@0.27.4)(tsx@4.20.6)(yaml@2.8.3)
+
   examples/desktop-agent:
     dependencies:
       dotenv:
@@ -118,6 +137,25 @@ importers:
         specifier: 4.1.0
         version: 4.1.0(@types/node@25.5.0)(esbuild@0.27.4)(tsx@4.20.6)(yaml@2.8.1)
 
+  examples/openrouter-chatbot:
+    dependencies:
+      dotenv:
+        specifier: 17.2.3
+        version: 17.2.3
+    devDependencies:
+      '@types/node':
+        specifier: 25.5.0
+        version: 25.5.0
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@25.5.0)(esbuild@0.27.4)(tsx@4.20.6)(yaml@2.8.3)
+
   packages/bot:
     dependencies:
       '@openwx/core':
@@ -129,14 +167,29 @@ importers:
       '@openwx/connector-claude-code':
         specifier: workspace:*
         version: link:claude-code
+      '@openwx/connector-codex':
+        specifier: workspace:*
+        version: link:codex
       '@openwx/connector-echo':
         specifier: workspace:*
         version: link:echo
       '@openwx/connector-http-proxy':
         specifier: workspace:*
         version: link:http-proxy
+      '@openwx/connector-openrouter':
+        specifier: workspace:*
+        version: link:openrouter
 
   packages/connectors/claude-code:
+    dependencies:
+      '@openwx/bot':
+        specifier: workspace:*
+        version: link:../../bot
+      '@openwx/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/connectors/codex:
     dependencies:
       '@openwx/bot':
         specifier: workspace:*
@@ -155,6 +208,15 @@ importers:
         version: link:../../core
 
   packages/connectors/http-proxy:
+    dependencies:
+      '@openwx/bot':
+        specifier: workspace:*
+        version: link:../../bot
+      '@openwx/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/connectors/openrouter:
     dependencies:
       '@openwx/bot':
         specifier: workspace:*

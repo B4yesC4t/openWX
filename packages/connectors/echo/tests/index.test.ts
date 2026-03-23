@@ -1,8 +1,12 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessageContext, MessageMedia } from "@openwx/bot";
 
-import { createHandler } from "../src/index.js";
+import { createEchoConnector, createHandler } from "../src/index.js";
 
 describe("createHandler", () => {
   it("echoes inbound text", async () => {
@@ -33,6 +37,28 @@ describe("createHandler", () => {
         })
       )
     ).resolves.toBe("收到文件 report.pdf (3KB)");
+  });
+
+  it("exposes a connector factory compatible with hub runtime", async () => {
+    const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "openwx-echo-"));
+    const filePath = path.join(tempDirectory, "report.pdf");
+    await writeFile(filePath, Buffer.alloc(3072));
+
+    const connector = createEchoConnector();
+
+    await expect(
+      connector.handle({
+        conversationId: "demo",
+        text: "",
+        media: {
+          type: "file",
+          filePath,
+          mimeType: "application/pdf"
+        }
+      })
+    ).resolves.toStrictEqual({
+      text: "收到文件 report.pdf (3KB)"
+    });
   });
 });
 

@@ -15,6 +15,10 @@ pnpm add @openwx/hub
 - `describeHub(config)`: returns config plus router metadata for inspection
 - `createHub(config)`: creates the runnable hub runtime
 
+`createHub()` loads connector packages by `handler` name using the convention
+`@openwx/connector-${handler}`. Those packages must be installed in the app
+that runs the hub.
+
 ## Example
 
 ```ts

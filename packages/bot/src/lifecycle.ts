@@ -76,6 +76,8 @@ export interface BotClient {
   restoreAccount(accountId?: string): boolean;
   login(): Promise<unknown>;
   startPolling(options?: { signal?: AbortSignal }): Promise<void>;
+  sendTyping(to: string): Promise<unknown>;
+  cancelTyping(to: string): Promise<unknown>;
   sendText(to: string, text: string): Promise<unknown>;
   send(to: string, message: { text?: string; item?: MessageItem }): Promise<unknown>;
   apiFetch<TResponse, TBody extends object = Record<string, unknown>>(
@@ -95,12 +97,23 @@ export interface BotLogger {
   warn(message: string, ...args: unknown[]): void;
 }
 
+export interface BotAutoTypingOptions {
+  readonly intervalMs?: number;
+  readonly cancelOnFinish?: boolean;
+}
+
+interface ResolvedBotAutoTypingOptions {
+  readonly intervalMs: number;
+  readonly cancelOnFinish: boolean;
+}
+
 export interface ManagedBotOptions {
   readonly accountId?: string;
   readonly onMessage?: MessageHandler;
   readonly onError?: ErrorHandler;
   readonly commands?: CommandHandlers;
   readonly autoDownloadMedia: boolean;
+  readonly autoTyping?: ResolvedBotAutoTypingOptions;
   readonly clientFactory: () => BotClient;
 }
 
@@ -118,10 +131,15 @@ interface MediaSource {
   readonly media: CDNMedia;
 }
 
+interface AutoTypingController {
+  stop(): Promise<void>;
+}
+
 const DEFAULT_MEDIA_PREFIX = "openwx-bot-";
 const DEFAULT_SIGNAL_EVENTS: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
 const CDN_UPLOAD_MAX_RETRIES = 3;
 const AES_BLOCK_SIZE_BYTES = 16;
+const DEFAULT_TYPING_INTERVAL_MS = 4_000;
 
 const defaultLogger: BotLogger = {
   warn(message: string, ...args: unknown[]) {
@@ -379,9 +397,11 @@ export class ManagedBot extends EventEmitter implements Bot {
     }
 
     let ctx: MessageContext | undefined;
+    let typingController: AutoTypingController | undefined;
 
     try {
       ctx = await this.buildMessageContext(message);
+      typingController = this.startAutoTyping(ctx.userId);
       this.emit("message", ctx);
       const reply = await this.routeMessage(ctx);
       await this.dispatchReply(reply, ctx);
@@ -394,6 +414,8 @@ export class ManagedBot extends EventEmitter implements Bot {
       }
 
       this.emitBotError(normalizedError);
+    } finally {
+      await typingController?.stop();
     }
   }
 
@@ -618,6 +640,89 @@ export class ManagedBot extends EventEmitter implements Bot {
 
     this.emit("error", error, ctx);
   }
+
+  private startAutoTyping(userId: string): AutoTypingController | undefined {
+    if (!this.options.autoTyping) {
+      return undefined;
+    }
+
+    const options = this.options.autoTyping;
+    let stopped = false;
+    let timer: NodeJS.Timeout | undefined;
+    let pendingTyping = Promise.resolve();
+
+    const queueTyping = (): void => {
+      pendingTyping = pendingTyping.then(async () => {
+        if (stopped) {
+          return;
+        }
+
+        try {
+          await this.currentClient.sendTyping(userId);
+        } catch (error) {
+          if (!stopped) {
+            this.logger.warn(
+              "Failed to send typing indicator to %s: %s",
+              userId,
+              normalizeError(error).message
+            );
+          }
+        }
+      });
+    };
+
+    queueTyping();
+    timer = setInterval(queueTyping, options.intervalMs);
+
+    return {
+      stop: async (): Promise<void> => {
+        if (stopped) {
+          return;
+        }
+
+        stopped = true;
+        if (timer) {
+          clearInterval(timer);
+        }
+
+        await pendingTyping;
+
+        if (!options.cancelOnFinish) {
+          return;
+        }
+
+        try {
+          await this.currentClient.cancelTyping(userId);
+        } catch (error) {
+          this.logger.warn(
+            "Failed to cancel typing indicator for %s: %s",
+            userId,
+            normalizeError(error).message
+          );
+        }
+      }
+    };
+  }
+}
+
+export function resolveAutoTypingOptions(
+  options: boolean | BotAutoTypingOptions | undefined
+): ResolvedBotAutoTypingOptions | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  if (options === true) {
+    return {
+      intervalMs: DEFAULT_TYPING_INTERVAL_MS,
+      cancelOnFinish: true
+    };
+  }
+
+  return {
+    intervalMs: options.intervalMs ?? DEFAULT_TYPING_INTERVAL_MS,
+    cancelOnFinish: options.cancelOnFinish ?? true
+  };
 }
 
 function extractMediaSource(message: InboundMessage): MediaSource | undefined {

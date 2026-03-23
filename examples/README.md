@@ -14,16 +14,20 @@
 
 | 名称 | 描述 | 难度 | 使用的 SDK 层 |
 | --- | --- | --- | --- |
+| [assistant](./assistant/README.md) | 面向终端用户的统一入口。首次只选择 Claude、Codex、OpenRouter、自定义 chatbot 或多应用接入之一，然后扫码即用。 | 入门 | `@openwx/bot`, `@openwx/connectors`, `@openwx/hub` |
 | [minimal](./minimal/README.md) | 最短路径展示 `createBot()`、消息处理和 `start()` 生命周期。 | 入门 | `@openwx/bot` |
 | [media-bot](./media-bot/README.md) | 演示图片下载解密、尺寸读取、本地图片发送和文件发送。 | 中级 | `@openwx/bot`, `@openwx/core` |
-| [multi-app](./multi-app/README.md) | 使用 `hub.yaml` 描述多应用路由，并在 Bot 中按前缀分发到不同 connector。 | 中级 | `@openwx/bot`, `@openwx/hub`, `@openwx/connectors` |
+| [multi-app](./multi-app/README.md) | 高级多应用路由示例。适合需要同时挂多个 agent，并接受前缀分流的场景。 | 中级 | `@openwx/bot`, `@openwx/hub`, `@openwx/connectors` |
+| [openrouter-chatbot](./openrouter-chatbot/README.md) | 最小 OpenRouter chatbot case。 | 中级 | `@openwx/bot`, `@openwx/connectors` |
 | [desktop-agent](./desktop-agent/README.md) | 展示微信远控桌面、白名单保护、危险命令确认和截图回传。 | 高级 | `@openwx/bot`, `@openwx/core` |
 
 ## Validation
 
 - 根目录验证：`pnpm build && pnpm test && pnpm lint`
 - 单示例验证：
+  - `cd examples/assistant && npm install && npx tsc --noEmit`
   - `cd examples/minimal && npm install && npx tsc --noEmit`
   - `cd examples/media-bot && npm install && npx tsc --noEmit`
   - `cd examples/multi-app && npm install && npx tsc --noEmit`
+  - `cd examples/openrouter-chatbot && npm install && npx tsc --noEmit`
   - `cd examples/desktop-agent && npm install && npx tsc --noEmit`

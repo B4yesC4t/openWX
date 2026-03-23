@@ -12,8 +12,8 @@ An open-source TypeScript SDK for connecting apps and AI agents to WeChat throug
 
 - `@openwx/core`: iLink auth, long polling, message send helpers, media upload/download, session cooldown, persistence
 - `@openwx/bot`: `createBot()` lifecycle wrapper with commands, message handlers, media helpers, and QR login fallback
-- `@openwx/hub`: scaffolded multi-app routing config for connector, HTTP, and command targets
-- `@openwx/connector-*`: ready-to-wire connector entry points for Claude Code, echo bots, and HTTP proxies
+- `@openwx/hub`: runnable multi-app routing config with connector loading and prefix/keyword/user matchers
+- `@openwx/connector-*`: connector factories and handler helpers for Claude Code, Codex, OpenRouter, echo bots, and HTTP proxies
 - Monorepo with pnpm workspaces, TypeScript, Vitest, ESLint, and Node.js 20+
 
 ## Package Map | 包结构
@@ -27,6 +27,8 @@ An open-source TypeScript SDK for connecting apps and AI agents to WeChat throug
 | [`@openwx/connector-echo`](./packages/connectors/echo/README.md)               | Minimal echo connector                                      |
 | [`@openwx/connector-http-proxy`](./packages/connectors/http-proxy/README.md)   | HTTP upstream connector                                     |
 | [`@openwx/connector-claude-code`](./packages/connectors/claude-code/README.md) | Claude Code connector scaffold                              |
+| [`@openwx/connector-codex`](./packages/connectors/codex/README.md)             | Codex CLI connector                                         |
+| [`@openwx/connector-openrouter`](./packages/connectors/openrouter/README.md)   | OpenRouter chatbot connector                                |
 
 ## Quick Start | 快速开始
 
@@ -68,6 +70,8 @@ pnpm add @openwx/hub
 pnpm add @openwx/connector-echo
 pnpm add @openwx/connector-http-proxy
 pnpm add @openwx/connector-claude-code
+pnpm add @openwx/connector-codex
+pnpm add @openwx/connector-openrouter
 ```
 
 - `@openwx/core`: use when you need direct protocol control
@@ -155,6 +159,7 @@ interface CreateBotOptions {
   storeDir?: string;
   qrDisplay?: BuiltInQRDisplay | QRDisplayProvider;
   autoDownloadMedia?: boolean;
+  autoTyping?: boolean | { intervalMs?: number; cancelOnFinish?: boolean };
 }
 
 function createBot(
@@ -167,6 +172,7 @@ function createBot(
 import { createBot } from "@openwx/bot";
 
 const bot = createBot({
+  autoTyping: true,
   commands: {
     "/ping": async (ctx) => ({ text: `pong ${ctx.args.join(" ")}` })
   },
@@ -187,25 +193,30 @@ await bot.start();
 ### Hub Configuration (`@openwx/hub`)
 
 ```ts
-interface RouteTarget {
-  type: "connector" | "http" | "command";
-  name?: string;
-  url?: string;
-  command?: string;
-}
-
-interface RouteConfig {
+interface HubRouteConfig {
+  handler: string;
+  config?: Record<string, unknown>;
   prefix?: string;
-  target: RouteTarget;
+  keywords?: readonly string[];
+  users?: readonly string[];
+  pattern?: string;
+  default?: boolean;
+  stripPrefix?: boolean;
 }
 
 interface HubConfig {
-  routes: readonly RouteConfig[];
-  defaultRoute?: RouteTarget;
+  auth?: {
+    token?: string;
+    accountId?: string;
+    storeDir?: string;
+    autoDownloadMedia?: boolean;
+    autoTyping?: boolean;
+  };
+  routes: readonly HubRouteConfig[];
 }
 
 function defineHubConfig(config: HubConfig): HubConfig;
-function createHubScaffold(config: HubConfig): {
+function describeHub(config: HubConfig): {
   config: HubConfig;
   router: {
     packageName: "@openwx/hub";
@@ -213,23 +224,29 @@ function createHubScaffold(config: HubConfig): {
     botPackage: string;
   };
 };
+function createHub(config: HubConfig): Promise<HubRuntime>;
 ```
 
 ```ts
-import { createHubScaffold, defineHubConfig } from "@openwx/hub";
+import { createHub, defineHubConfig, describeHub } from "@openwx/hub";
 
 const config = defineHubConfig({
   routes: [
     {
       prefix: "/support",
-      target: { type: "connector", name: "@openwx/connector-http-proxy" }
+      handler: "http-proxy",
+      config: {
+        endpoint: "https://example.internal/openwx"
+      }
     }
-  ],
-  defaultRoute: { type: "command", command: "node ./scripts/fallback.mjs" }
+  ]
 });
 
-const hub = createHubScaffold(config);
-console.log(hub.router.routeCount);
+const described = describeHub(config);
+console.log(described.router.routeCount);
+
+const runtime = await createHub(config);
+await runtime.bot.start();
 ```
 
 ## Architecture | 架构图
@@ -255,9 +272,11 @@ flowchart LR
 
 ## Examples | 示例索引
 
+- [`examples/assistant`](./examples/assistant/README.md): end-user-friendly assistant entry with provider selection and QR-first login
 - [`examples/minimal`](./examples/minimal/README.md): smallest bot skeleton
 - [`examples/media-bot`](./examples/media-bot/README.md): media handling placeholder
-- [`examples/multi-app`](./examples/multi-app/README.md): hub routing placeholder
+- [`examples/multi-app`](./examples/multi-app/README.md): hub routing with Claude, Codex, OpenRouter, and Echo
+- [`examples/openrouter-chatbot`](./examples/openrouter-chatbot/README.md): smallest OpenRouter chatbot case
 - [`examples/desktop-agent`](./examples/desktop-agent/README.md): desktop agent placeholder
 - [`protocol/README.md`](./protocol/README.md): pointer to the full protocol reference in [`DEVELOPMENT.md`](./DEVELOPMENT.md)
 

@@ -8,6 +8,7 @@ const token = process.env.OPENWX_TOKEN?.trim();
 
 const bot = createBot({
   ...(token ? { token } : {}),
+  autoTyping: true,
   commands: {
     "/cat": async () => ({ text: "送你一只本地猫图。", image: exampleAssetPath("cat.svg") }),
     "/readme": async () => ({ text: "把示例说明也发给你。", file: exampleAssetPath("../README.md"), fileName: "README.md" })

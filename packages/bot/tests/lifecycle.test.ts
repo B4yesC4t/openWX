@@ -130,6 +130,45 @@ describe("bot lifecycle", () => {
     await bot.stop();
   });
 
+  it("sends typing before handling and cancels it after replying when autoTyping is enabled", async () => {
+    const client = new FakeClient("bot-token");
+    let resolveReply: ((value: string) => void) | undefined;
+    const bot = createBot(
+      {
+        autoTyping: true,
+        onMessage: async () =>
+          await new Promise<string>((resolve) => {
+            resolveReply = resolve;
+          })
+      },
+      {
+        clientFactory: () => client,
+        handleProcessSignals: false
+      }
+    );
+
+    await bot.start();
+    client.emitMessage(createTextInboundMessage("slow"));
+    await flushAsyncWork();
+
+    expect(client.sendTypingCalls).toStrictEqual(["user-1@im.wechat"]);
+    expect(client.cancelTypingCalls).toStrictEqual([]);
+    expect(client.sendTextCalls).toStrictEqual([]);
+
+    resolveReply?.("done");
+    await flushAsyncWork();
+
+    expect(client.sendTextCalls).toStrictEqual([
+      {
+        to: "user-1@im.wechat",
+        text: "done"
+      }
+    ]);
+    expect(client.cancelTypingCalls).toStrictEqual(["user-1@im.wechat"]);
+
+    await bot.stop();
+  });
+
   it("emits reconnecting when the underlying session expires", async () => {
     const client = new FakeClient("bot-token");
     client.options.sessionGuard = {

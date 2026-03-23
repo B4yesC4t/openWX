@@ -1,3 +1,7 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MessageContext, MessageMedia } from "@openwx/bot";
@@ -94,6 +98,55 @@ describe("createHandler", () => {
 
     await expect(responsePromise).resolves.toBe(FALLBACK_TEXT);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes a connector factory compatible with hub runtime", async () => {
+    const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "openwx-http-proxy-"));
+    const filePath = path.join(tempDirectory, "input.png");
+    await writeFile(filePath, Buffer.from("img"));
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        text: "代理回复"
+      })
+    );
+
+    const { createHttpProxyConnector } = await import("../src/index.js");
+    const connector = createHttpProxyConnector({
+      endpoint: "https://proxy.example.com",
+      headers: {
+        Authorization: "Bearer token"
+      }
+    });
+
+    await expect(
+      connector.handle({
+        conversationId: "user_xxx",
+        text: "用户消息",
+        media: {
+          type: "image",
+          filePath,
+          mimeType: "image/png"
+        }
+      })
+    ).resolves.toStrictEqual({
+      text: "代理回复"
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://proxy.example.com/chat");
+    expect(init.headers).toMatchObject({
+      "content-type": "application/json",
+      Authorization: "Bearer token"
+    });
+    expect(JSON.parse(String(init.body))).toStrictEqual({
+      conversationId: "user_xxx",
+      text: "用户消息",
+      media: {
+        type: "image",
+        url: `data:image/png;base64,${Buffer.from("img").toString("base64")}`,
+        mimeType: "image/png"
+      }
+    });
   });
 });
 

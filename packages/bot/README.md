@@ -15,6 +15,7 @@ pnpm add @openwx/bot
 - `Bot#stop()`: stop polling, wait for in-flight handlers, and dispose the client
 - Message helpers: `ctx.reply()`, `ctx.replyImage()`, `ctx.replyFile()`
 - Command routing: `commands: { "/ping": handler }`
+- Optional typing indicators: `autoTyping: true` or `autoTyping: { intervalMs }`
 
 ## Example
 
@@ -22,6 +23,7 @@ pnpm add @openwx/bot
 import { createBot } from "@openwx/bot";
 
 const bot = createBot({
+  autoTyping: true,
   commands: {
     "/ping": async () => ({ text: "pong" })
   },
@@ -39,4 +41,5 @@ await bot.start();
 
 - `createBot()` requires `onMessage` or at least one command handler
 - `autoDownloadMedia` enables convenience media handling for inbound assets
+- `autoTyping` sends `typing` before handling and refreshes it until the reply finishes
 - `qrDisplay` can be `"terminal"`, `"local-file"`, `"url-only"`, or a custom provider

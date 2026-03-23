@@ -8,11 +8,17 @@ const alias = {
   "@openwx/connector-claude-code": fileURLToPath(
     new URL("./packages/connectors/claude-code/src/index.ts", import.meta.url)
   ),
+  "@openwx/connector-codex": fileURLToPath(
+    new URL("./packages/connectors/codex/src/index.ts", import.meta.url)
+  ),
   "@openwx/connector-echo": fileURLToPath(
     new URL("./packages/connectors/echo/src/index.ts", import.meta.url)
   ),
   "@openwx/connector-http-proxy": fileURLToPath(
     new URL("./packages/connectors/http-proxy/src/index.ts", import.meta.url)
+  ),
+  "@openwx/connector-openrouter": fileURLToPath(
+    new URL("./packages/connectors/openrouter/src/index.ts", import.meta.url)
   )
 };
 

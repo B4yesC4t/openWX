@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 import type { MessageContext, MessageHandler } from "@openwx/bot";
+import type { Connector, ConnectorRequest, ConnectorResponse } from "@openwx/core";
 
 const DEFAULT_CLAUDE_PATH = "/opt/homebrew/bin/claude";
 const DEFAULT_SYSTEM_PROMPT = "你是微信 AI 助手，请使用简洁、自然的纯文本回复用户。";
@@ -21,13 +23,41 @@ export interface ClaudeCodeHandlerOptions {
 }
 
 export function createHandler(options: ClaudeCodeHandlerOptions = {}): MessageHandler {
+  const respond = createClaudeResponder(options);
+
+  return async (ctx) =>
+    respond({
+      conversationId: ctx.userId,
+      userMessage: buildUserMessageFromContext(ctx)
+    });
+}
+
+export function createClaudeCodeConnector(options: ClaudeCodeHandlerOptions = {}): Connector {
+  const respond = createClaudeResponder(options);
+
+  return {
+    id: "claude-code",
+    async handle(request: ConnectorRequest): Promise<ConnectorResponse> {
+      return {
+        text: await respond({
+          conversationId: request.conversationId,
+          userMessage: buildUserMessageFromRequest(request)
+        })
+      };
+    }
+  };
+}
+
+export const createClaudeCodeHandler = createHandler;
+
+function createClaudeResponder(
+  options: ClaudeCodeHandlerOptions = {}
+): (input: { conversationId: string; userMessage: string }) => Promise<string> {
   const conversationHistory = new Map<string, ConversationTurn[]>();
   const runtimeOptions = normalizeOptions(options);
 
-  return async (ctx) => {
-    const conversationId = ctx.userId;
+  return async ({ conversationId, userMessage }) => {
     const history = conversationHistory.get(conversationId) ?? [];
-    const userMessage = buildUserMessage(ctx);
     const prompt = buildPrompt(runtimeOptions.systemPrompt, history, userMessage);
     const response = await runClaude(prompt, runtimeOptions);
 
@@ -45,8 +75,6 @@ export function createHandler(options: ClaudeCodeHandlerOptions = {}): MessageHa
   };
 }
 
-export const createClaudeCodeHandler = createHandler;
-
 function normalizeOptions(options: ClaudeCodeHandlerOptions): Required<ClaudeCodeHandlerOptions> {
   return {
     systemPrompt: options.systemPrompt?.trim() || DEFAULT_SYSTEM_PROMPT,
@@ -60,7 +88,7 @@ function resolveClaudeCliPath(): string {
   return existsSync(DEFAULT_CLAUDE_PATH) ? DEFAULT_CLAUDE_PATH : "claude";
 }
 
-function buildUserMessage(ctx: MessageContext): string {
+function buildUserMessageFromContext(ctx: MessageContext): string {
   const parts: string[] = [];
 
   if (ctx.text?.trim()) {
@@ -72,6 +100,25 @@ function buildUserMessage(ctx: MessageContext): string {
       ctx.media.type === "file"
         ? `收到一个文件消息${ctx.media.fileName ? ` (${ctx.media.fileName})` : ""}`
         : `收到一个${ctx.media.type}消息`;
+    parts.push(mediaSummary);
+  }
+
+  return parts.join("\n").trim() || "请处理这条空消息。";
+}
+
+function buildUserMessageFromRequest(request: ConnectorRequest): string {
+  const parts: string[] = [];
+
+  if (request.text.trim()) {
+    parts.push(request.text.trim());
+  }
+
+  if (request.media) {
+    const mediaName = path.basename(request.media.filePath);
+    const mediaSummary =
+      request.media.type === "file"
+        ? `收到一个文件消息${mediaName ? ` (${mediaName})` : ""}`
+        : `收到一个${request.media.type}消息`;
     parts.push(mediaSummary);
   }
 

@@ -8,8 +8,10 @@ import type { CommandHandlers, ErrorHandler, MessageHandler } from "./handler.js
 import {
   ManagedBot,
   type Bot,
+  type BotAutoTypingOptions,
   type BotClient,
-  type ManagedBotRuntimeOptions
+  type ManagedBotRuntimeOptions,
+  resolveAutoTypingOptions
 } from "./lifecycle.js";
 
 export interface CreateBotOptions {
@@ -21,6 +23,7 @@ export interface CreateBotOptions {
   readonly storeDir?: string;
   readonly qrDisplay?: BuiltInQRDisplay | QRDisplayProvider;
   readonly autoDownloadMedia?: boolean;
+  readonly autoTyping?: boolean | BotAutoTypingOptions;
 }
 
 export interface CreateBotRuntimeOptions extends ManagedBotRuntimeOptions {
@@ -32,6 +35,7 @@ export function createBot(
   runtime: CreateBotRuntimeOptions = {}
 ): Bot {
   validateOptions(options);
+  const autoTyping = resolveAutoTypingOptions(options.autoTyping);
 
   const clientFactory =
     runtime.clientFactory ??
@@ -50,6 +54,7 @@ export function createBot(
       ...(options.onError !== undefined ? { onError: options.onError } : {}),
       ...(options.commands !== undefined ? { commands: options.commands } : {}),
       autoDownloadMedia: options.autoDownloadMedia ?? false,
+      ...(autoTyping !== undefined ? { autoTyping } : {}),
       clientFactory
     },
     runtime
@@ -70,6 +75,15 @@ function validateOptions(options: CreateBotOptions): void {
 
   if (options.onError !== undefined && typeof options.onError !== "function") {
     throw new Error("onError must be a function.");
+  }
+
+  if (options.autoTyping && typeof options.autoTyping === "object") {
+    if (
+      options.autoTyping.intervalMs !== undefined &&
+      (!Number.isFinite(options.autoTyping.intervalMs) || options.autoTyping.intervalMs <= 0)
+    ) {
+      throw new Error("autoTyping.intervalMs must be a positive number.");
+    }
   }
 
   if (options.commands) {

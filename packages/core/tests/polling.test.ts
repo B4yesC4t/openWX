@@ -33,13 +33,13 @@ describe("PollingEngine", () => {
 
   it("loads persisted get_updates_buf, saves the next cursor, and adopts server timeout overrides", async () => {
     const store = new MemorySyncBufferStore();
-    await store.saveSyncBuf("acc-1", "cursor-1");
+    await store.saveSyncBuf("acc-1", "Y3Vyc29yLTE=");
 
     const firstTransport = {
       poll: vi.fn<(...args: [PollOptions?]) => Promise<PollResult>>().mockResolvedValue({
         messages: [],
         rawMessages: [],
-        getUpdatesBuf: "cursor-2",
+        getUpdatesBuf: "Y3Vyc29yLTI=",
         longPollingTimeoutMs: 48_000,
         sessionExpired: false
       })
@@ -54,10 +54,10 @@ describe("PollingEngine", () => {
     await firstEngine.poll();
 
     expect(firstTransport.poll).toHaveBeenCalledWith({
-      getUpdatesBuf: "cursor-1",
+      getUpdatesBuf: "Y3Vyc29yLTE=",
       timeoutMs: DEFAULT_LONG_POLL_TIMEOUT_MS
     });
-    expect(await store.loadSyncBuf("acc-1")).toBe("cursor-2");
+    expect(await store.loadSyncBuf("acc-1")).toBe("Y3Vyc29yLTI=");
 
     const secondTransport = {
       poll: vi.fn<(...args: [PollOptions?]) => Promise<PollResult>>().mockResolvedValue({
@@ -77,9 +77,37 @@ describe("PollingEngine", () => {
     await secondEngine.poll();
 
     expect(secondTransport.poll).toHaveBeenCalledWith({
-      getUpdatesBuf: "cursor-2",
+      getUpdatesBuf: "Y3Vyc29yLTI=",
       timeoutMs: 48_000
     });
+  });
+
+  it("falls back to an empty cursor when persisted get_updates_buf is invalid", async () => {
+    const store = new MemorySyncBufferStore();
+    await store.saveSyncBuf("acc-invalid", "cursor-media");
+
+    const transport = {
+      poll: vi.fn<(...args: [PollOptions?]) => Promise<PollResult>>().mockResolvedValue({
+        messages: [],
+        rawMessages: [],
+        getUpdatesBuf: "Y3Vyc29yLW5leHQ=",
+        sessionExpired: false
+      })
+    };
+
+    const engine = new PollingEngine({
+      accountId: "acc-invalid",
+      client: transport,
+      store
+    });
+
+    await engine.poll();
+
+    expect(transport.poll).toHaveBeenCalledWith({
+      getUpdatesBuf: "",
+      timeoutMs: DEFAULT_LONG_POLL_TIMEOUT_MS
+    });
+    expect(await store.loadSyncBuf("acc-invalid")).toBe("Y3Vyc29yLW5leHQ=");
   });
 
   it("retries after single failures and backs off after the third consecutive failure", async () => {

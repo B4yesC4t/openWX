@@ -34,4 +34,15 @@ describe("createBot", () => {
     expect(bot.client).toBe(client);
     expect(bot.state).toBe("idle");
   });
+
+  it("rejects invalid autoTyping intervals", () => {
+    expect(() =>
+      createBot({
+        onMessage: async () => undefined,
+        autoTyping: {
+          intervalMs: 0
+        }
+      })
+    ).toThrow("autoTyping.intervalMs must be a positive number.");
+  });
 });

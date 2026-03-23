@@ -21,6 +21,7 @@ assertHasAllowedUsers(allowedUsers);
 
 const bot = createBot({
   ...(token ? { token } : {}),
+  autoTyping: true,
   commands: {
     "/ls": async (ctx) => {
       if (!isAllowedUser(ctx.userId, allowedUsers)) {

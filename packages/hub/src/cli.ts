@@ -96,6 +96,7 @@ export async function createHubRuntime(
     ...(config.auth?.accountId !== undefined ? { accountId: config.auth.accountId } : {}),
     ...(config.auth?.storeDir !== undefined ? { storeDir: config.auth.storeDir } : {}),
     autoDownloadMedia: config.auth?.autoDownloadMedia ?? false,
+    autoTyping: config.auth?.autoTyping ?? false,
     onMessage
   });
 

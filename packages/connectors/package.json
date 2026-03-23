@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@openwx/connector-claude-code": "workspace:*",
+    "@openwx/connector-codex": "workspace:*",
     "@openwx/connector-echo": "workspace:*",
-    "@openwx/connector-http-proxy": "workspace:*"
+    "@openwx/connector-http-proxy": "workspace:*",
+    "@openwx/connector-openrouter": "workspace:*"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --tsconfig tsconfig.build.json",

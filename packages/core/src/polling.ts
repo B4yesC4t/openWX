@@ -145,7 +145,7 @@ export class PollingEngine {
 
   private async hydrate(initialBuf?: string): Promise<void> {
     if (initialBuf !== undefined) {
-      this.currentBuf = initialBuf;
+      this.currentBuf = normalizeGetUpdatesBuf(initialBuf);
       this.hydrated = true;
       return;
     }
@@ -154,24 +154,37 @@ export class PollingEngine {
       return;
     }
 
-    this.currentBuf = (await this.store?.loadSyncBuf(this.accountId)) ?? "";
+    this.currentBuf = normalizeGetUpdatesBuf(await this.store?.loadSyncBuf(this.accountId));
     this.hydrated = true;
   }
 
   private async captureState(result: PollResult, explicitBuf?: string): Promise<void> {
     if (explicitBuf !== undefined) {
-      this.currentBuf = explicitBuf;
+      this.currentBuf = normalizeGetUpdatesBuf(explicitBuf);
     }
 
     if (result.getUpdatesBuf !== undefined) {
-      this.currentBuf = result.getUpdatesBuf;
-      await this.store?.saveSyncBuf(this.accountId, result.getUpdatesBuf);
+      this.currentBuf = normalizeGetUpdatesBuf(result.getUpdatesBuf);
+      await this.store?.saveSyncBuf(this.accountId, this.currentBuf);
     }
 
     if (result.longPollingTimeoutMs !== undefined) {
       this.currentTimeoutMs = result.longPollingTimeoutMs;
     }
   }
+}
+
+function normalizeGetUpdatesBuf(value: string | null | undefined): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return "";
+  }
+
+  return /^[A-Za-z0-9+/=]+$/.test(normalized) ? normalized : "";
 }
 
 export interface PollingScaffold {

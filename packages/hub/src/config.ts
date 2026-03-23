@@ -9,6 +9,7 @@ export interface HubAuthConfig {
   readonly accountId?: string;
   readonly storeDir?: string;
   readonly autoDownloadMedia?: boolean;
+  readonly autoTyping?: boolean;
 }
 
 export interface HubRouteConfig {
@@ -49,7 +50,13 @@ interface RawHubConfig {
   readonly routes?: unknown;
 }
 
-export const DEFAULT_HANDLER_NAMES = ["claude-code", "echo", "http-proxy"] as const;
+export const DEFAULT_HANDLER_NAMES = [
+  "claude-code",
+  "codex",
+  "echo",
+  "http-proxy",
+  "openrouter"
+] as const;
 
 export function defineHubConfig(config: HubConfig): HubConfig {
   return validateHubConfig(config);
@@ -204,6 +211,9 @@ function normalizeAuth(rawAuth: unknown): HubAuthConfig | undefined {
     ...(storeDir !== undefined ? { storeDir } : {}),
     ...(rawAuth.autoDownloadMedia !== undefined
       ? { autoDownloadMedia: asBoolean(rawAuth.autoDownloadMedia, "auth.autoDownloadMedia") }
+      : {}),
+    ...(rawAuth.autoTyping !== undefined
+      ? { autoTyping: asBoolean(rawAuth.autoTyping, "auth.autoTyping") }
       : {})
   };
 

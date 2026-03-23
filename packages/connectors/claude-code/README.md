@@ -13,11 +13,15 @@ pnpm add @openwx/connector-claude-code
 ```ts
 interface ClaudeCodeConnectorOptions {
   systemPrompt?: string;
+  model?: string;
+  timeout?: number;
+  cliPath?: string;
 }
 
 function createClaudeCodeConnector(
   options?: ClaudeCodeConnectorOptions
 ): Connector;
+function createHandler(options?: ClaudeCodeConnectorOptions): MessageHandler;
 ```
 
 ## Example

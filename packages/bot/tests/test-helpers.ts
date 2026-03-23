@@ -21,6 +21,8 @@ export class FakeSignalProcess extends EventEmitter implements SignalProcess {
 export class FakeClient extends EventEmitter implements BotClient {
   readonly options: BotClient["options"];
   readonly sendTextCalls: Array<{ to: string; text: string }> = [];
+  readonly sendTypingCalls: string[] = [];
+  readonly cancelTypingCalls: string[] = [];
   readonly sendCalls: Array<{ to: string; message: { text?: string; item?: MessageItem } }> = [];
   readonly apiFetchCalls: Array<{ endpoint: string; body: unknown }> = [];
 
@@ -84,6 +86,16 @@ export class FakeClient extends EventEmitter implements BotClient {
 
   async sendText(to: string, text: string): Promise<{ ret: 0 }> {
     this.sendTextCalls.push({ to, text });
+    return { ret: 0 };
+  }
+
+  async sendTyping(to: string): Promise<{ ret: 0 }> {
+    this.sendTypingCalls.push(to);
+    return { ret: 0 };
+  }
+
+  async cancelTyping(to: string): Promise<{ ret: 0 }> {
+    this.cancelTypingCalls.push(to);
     return { ret: 0 };
   }
 

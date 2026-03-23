@@ -24,8 +24,10 @@
       "@openwx/bot": ["packages/bot/src/index.ts"],
       "@openwx/hub": ["packages/hub/src/index.ts"],
       "@openwx/connector-claude-code": ["packages/connectors/claude-code/src/index.ts"],
+      "@openwx/connector-codex": ["packages/connectors/codex/src/index.ts"],
       "@openwx/connector-echo": ["packages/connectors/echo/src/index.ts"],
-      "@openwx/connector-http-proxy": ["packages/connectors/http-proxy/src/index.ts"]
+      "@openwx/connector-http-proxy": ["packages/connectors/http-proxy/src/index.ts"],
+      "@openwx/connector-openrouter": ["packages/connectors/openrouter/src/index.ts"]
     }
   }
 }

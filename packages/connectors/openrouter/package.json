@@ -1,0 +1,53 @@
+{
+  "name": "@openwx/connector-openrouter",
+  "version": "0.1.0",
+  "description": "OpenRouter chat connector for openWX chatbot integrations.",
+  "keywords": [
+    "openwx",
+    "wechat",
+    "connector",
+    "openrouter",
+    "chatbot",
+    "ilink"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/B4yesC4t/openWX.git",
+    "directory": "packages/connectors/openrouter"
+  },
+  "bugs": {
+    "url": "https://github.com/B4yesC4t/openWX/issues"
+  },
+  "homepage": "https://github.com/B4yesC4t/openWX#readme",
+  "dependencies": {
+    "@openwx/bot": "workspace:*",
+    "@openwx/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --tsconfig tsconfig.build.json",
+    "dev": "tsup src/index.ts --format esm --dts --watch --out-dir dist --tsconfig tsconfig.build.json",
+    "lint": "eslint src tests",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

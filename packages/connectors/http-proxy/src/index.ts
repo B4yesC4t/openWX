@@ -1,8 +1,9 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import type { MessageContext, MessageHandler, Reply } from "@openwx/bot";
+import type { Connector, ConnectorRequest, ConnectorResponse } from "@openwx/core";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_RETRIES = 1;
@@ -41,7 +42,7 @@ export function createHandler(options: HttpProxyHandlerOptions): MessageHandler 
   const config = normalizeOptions(options);
 
   return async (ctx) => {
-    const requestBody = await buildRequestBody(ctx);
+    const requestBody = await buildHandlerRequestBody(ctx);
 
     if (config.webhook) {
       void sendWithRetries(config, requestBody).catch(() => undefined);
@@ -53,6 +54,33 @@ export function createHandler(options: HttpProxyHandlerOptions): MessageHandler 
       return await toReply(response, config.timeout);
     } catch {
       return FALLBACK_TEXT;
+    }
+  };
+}
+
+export function createHttpProxyConnector(options: HttpProxyHandlerOptions): Connector {
+  const config = normalizeOptions(options);
+
+  return {
+    id: "http-proxy",
+    async handle(request: ConnectorRequest): Promise<ConnectorResponse> {
+      const requestBody = await buildConnectorRequestBody(request);
+
+      if (config.webhook) {
+        void sendWithRetries(config, requestBody).catch(() => undefined);
+        return {
+          text: DEFAULT_ACK_TEXT
+        };
+      }
+
+      try {
+        const response = await sendWithRetries(config, requestBody);
+        return toConnectorResponse(response);
+      } catch {
+        return {
+          text: FALLBACK_TEXT
+        };
+      }
     }
   };
 }
@@ -75,7 +103,7 @@ function normalizeOptions(
   };
 }
 
-async function buildRequestBody(ctx: MessageContext): Promise<ProxyRequestBody> {
+async function buildHandlerRequestBody(ctx: MessageContext): Promise<ProxyRequestBody> {
   return {
     conversationId: ctx.userId,
     text: ctx.text ?? "",
@@ -92,6 +120,22 @@ async function buildRequestBody(ctx: MessageContext): Promise<ProxyRequestBody> 
   };
 }
 
+async function buildConnectorRequestBody(request: ConnectorRequest): Promise<ProxyRequestBody> {
+  return {
+    conversationId: request.conversationId,
+    text: request.text,
+    ...(request.media !== undefined
+      ? {
+          media: {
+            type: request.media.type,
+            url: await toFileDataUrl(request.media.filePath, request.media.mimeType),
+            mimeType: request.media.mimeType
+          }
+        }
+      : {})
+  };
+}
+
 async function toDataUrl(ctx: MessageContext): Promise<string> {
   if (!ctx.media) {
     throw new Error("Cannot build media payload without media.");
@@ -99,6 +143,11 @@ async function toDataUrl(ctx: MessageContext): Promise<string> {
 
   const buffer = await ctx.media.download();
   return `data:${ctx.media.mimeType};base64,${buffer.toString("base64")}`;
+}
+
+async function toFileDataUrl(filePath: string, mimeType: string): Promise<string> {
+  const buffer = await readFile(filePath);
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
 
 async function sendWithRetries(
@@ -162,6 +211,21 @@ async function toReply(
   } catch {
     return response.text ?? FALLBACK_TEXT;
   }
+}
+
+function toConnectorResponse(response: ProxyResponseBody): ConnectorResponse {
+  if (!response.media?.url) {
+    return response.text !== undefined ? { text: response.text } : {};
+  }
+
+  return {
+    ...(response.text !== undefined ? { text: response.text } : {}),
+    media: {
+      type: response.media.type,
+      url: response.media.url,
+      ...(response.media.fileName !== undefined ? { fileName: response.media.fileName } : {})
+    }
+  };
 }
 
 async function downloadRemoteMedia(

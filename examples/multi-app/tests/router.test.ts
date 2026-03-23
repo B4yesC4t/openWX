@@ -5,8 +5,12 @@ import { buildHelpText, createExampleRouter, matchRoute } from "../src/router.js
 
 const config = parseHubConfig(`
 routes:
-  - prefix: /ai
+  - prefix: /claude
     handler: claude-code
+  - prefix: /codex
+    handler: codex
+  - prefix: /router
+    handler: openrouter
   - prefix: /echo
     handler: echo
 `);
@@ -14,7 +18,7 @@ const router = createExampleRouter(config);
 
 describe("matchRoute", () => {
   it("matches prefixed routes and strips the prefix", () => {
-    expect(matchRoute("/ai explain openwx", router)).toEqual({
+    expect(matchRoute("/claude explain openwx", router)).toEqual({
       kind: "handler",
       handler: "claude-code",
       forwardedText: "explain openwx"
@@ -33,7 +37,9 @@ describe("buildHelpText", () => {
   it("lists the configured routes", () => {
     const helpText = buildHelpText(config);
 
-    expect(helpText).toContain("/ai -> claude-code");
+    expect(helpText).toContain("/claude -> claude-code");
+    expect(helpText).toContain("/codex -> codex");
+    expect(helpText).toContain("/router -> openrouter");
     expect(helpText).toContain("/echo -> echo");
     expect(helpText).toContain("默认回复");
   });

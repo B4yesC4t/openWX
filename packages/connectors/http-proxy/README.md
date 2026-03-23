@@ -12,12 +12,17 @@ pnpm add @openwx/connector-http-proxy
 
 ```ts
 interface HttpProxyConnectorOptions {
-  url: string;
+  endpoint: string;
+  headers?: Record<string, string>;
+  timeout?: number;
+  retries?: number;
+  webhook?: boolean;
 }
 
 function createHttpProxyConnector(
   options: HttpProxyConnectorOptions
 ): Connector;
+function createHandler(options: HttpProxyConnectorOptions): MessageHandler;
 ```
 
 ## Example
@@ -26,6 +31,6 @@ function createHttpProxyConnector(
 import { createHttpProxyConnector } from "@openwx/connector-http-proxy";
 
 const connector = createHttpProxyConnector({
-  url: "https://example.internal/agent"
+  endpoint: "https://example.internal/agent"
 });
 ```

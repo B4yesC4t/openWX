@@ -90,6 +90,33 @@ describe("createHandler", () => {
 
     await expect(responsePromise).resolves.toBe(FALLBACK_TEXT);
   });
+
+  it("exposes a connector factory compatible with hub runtime", async () => {
+    const prompts: string[] = [];
+    spawnMock.mockImplementationOnce(() => createSuccessfulChild("连接器回复", prompts));
+
+    const { createClaudeCodeConnector } = await import("../src/index.js");
+    const connector = createClaudeCodeConnector({
+      cliPath: "/custom/claude",
+      systemPrompt: "请始终使用纯文本"
+    });
+
+    await expect(
+      connector.handle({
+        conversationId: "conversation-a",
+        text: "请总结一下",
+        media: {
+          type: "file",
+          filePath: "/tmp/report.pdf",
+          mimeType: "application/pdf"
+        }
+      })
+    ).resolves.toStrictEqual({
+      text: "连接器回复"
+    });
+
+    expect(prompts[0]).toContain("收到一个文件消息 (report.pdf)");
+  });
 });
 
 function createContext(overrides: Partial<MessageContext>): MessageContext {

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createHubRuntime,
+  loadConnectorFromModule,
   parseCliArgs,
   resolveConnectorFactory,
   runCli
@@ -39,11 +40,13 @@ describe("hub cli", () => {
       void text;
     });
     let capturedOnMessage: CreateBotOptions["onMessage"];
+    let capturedBotOptions: CreateBotOptions | undefined;
 
     const runtime = await createHubRuntime(
       {
         auth: {
-          token: "token-123"
+          token: "token-123",
+          autoTyping: true
         },
         routes: [
           { prefix: "/ai", handler: "claude-code", config: { model: "sonnet" } },
@@ -70,6 +73,7 @@ describe("hub cli", () => {
         },
         botFactory: (options) => {
           events.push("createBot");
+          capturedBotOptions = options;
           capturedOnMessage = options.onMessage;
           return createMockBot();
         }
@@ -78,6 +82,8 @@ describe("hub cli", () => {
 
     expect(events).toEqual(["load:claude-code", "load:echo", "createBot"]);
     expect(runtime.connectors.size).toBe(2);
+    expect(capturedBotOptions?.autoTyping).toBe(true);
+    expect(capturedOnMessage).toBeTypeOf("function");
 
     const ctx: MessageContext = {
       message: {} as MessageContext["message"],
@@ -139,5 +145,22 @@ describe("hub cli", () => {
         createHttpProxyConnector: factory
       })
     ).toBe(factory);
+  });
+
+  it("loads the real echo connector module through the hub loader", async () => {
+    const connector = await loadConnectorFromModule(
+      "echo",
+      undefined,
+      async () => import("../../connectors/echo/src/index.js")
+    );
+
+    await expect(
+      connector.handle({
+        conversationId: "demo",
+        text: "hello"
+      })
+    ).resolves.toStrictEqual({
+      text: "hello"
+    });
   });
 });

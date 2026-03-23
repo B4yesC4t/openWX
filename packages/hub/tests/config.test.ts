@@ -45,6 +45,7 @@ describe("hub config", () => {
     });
 
     expect(config.auth?.token).toBe("token-123");
+    expect(config.auth?.autoTyping).toBeUndefined();
     expect(config.routes[0]?.prefix).toBe("/ai");
     expect(config.routes[0]?.config).toEqual({
       model: "claude-sonnet-4-20250514"
@@ -103,6 +104,25 @@ describe("hub config", () => {
     expect(config.routes[0]?.config).toEqual({
       endpoint: "https://example.com/chat?path=C:\\temp\\logs"
     });
+  });
+
+  it("parses auth.autoTyping as a boolean", () => {
+    const config = parseHubConfig(
+      JSON.stringify({
+        auth: {
+          autoTyping: true
+        },
+        routes: [
+          {
+            default: true,
+            handler: "echo"
+          }
+        ]
+      }),
+      { format: "json" }
+    );
+
+    expect(config.auth?.autoTyping).toBe(true);
   });
 
   it("validates supported handlers and required fields", () => {

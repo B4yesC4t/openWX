@@ -1,5 +1,9 @@
 routes:
-  - prefix: /ai
+  - prefix: /claude
     handler: claude-code
+  - prefix: /codex
+    handler: codex
+  - prefix: /router
+    handler: openrouter
   - prefix: /echo
     handler: echo
