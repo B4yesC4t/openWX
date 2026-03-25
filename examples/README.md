@@ -1,33 +1,55 @@
-# openWX Examples
+# Examples 示例
 
-示例目录提供从最简上手到组合能力的完整项目，每个子目录都带有独立的 `README.md`、`.env.example`、`package.json` 和 TypeScript 校验脚本。
+这里是 openWX 的可运行示例。建议先从 `assistant` 开始，再按需要看别的示例。
 
-## Quick Start
+This directory contains runnable examples for openWX. Start with `assistant`, then move to other examples as needed.
 
-1. 在仓库根目录执行 `pnpm install` 安装共享依赖。
-2. 进入任意示例目录，例如 `cd examples/minimal`。
-3. 复制环境模板：`cp .env.example .env`，按需填写 token、白名单或其他配置。
-4. 执行 `npm install && npm start` 启动示例；需要类型校验时执行 `npx tsc --noEmit`。
-5. 微信扫码登录后，按各示例 README 中的步骤发送消息验证结果。
+## 先看这个 / Start Here
 
-## Example Index
+### [`assistant`](./assistant)
 
-| 名称 | 描述 | 难度 | 使用的 SDK 层 |
+默认推荐入口，适合大多数用户。
+
+- 先选 `Claude`、`Codex`、`OpenRouter`、`自定义 chatbot` 或 `多应用接入`
+- 扫码登录
+- 单应用直接聊天，多应用才使用前缀
+
+Recommended default entry for most users.
+
+- choose `Claude`, `Codex`, `OpenRouter`, `Custom chatbot`, or `Multi-app`
+- scan the QR code
+- single-app modes chat directly; multi-app uses prefixes
+
+```bash
+pnpm --filter @openwx/example-assistant start
+```
+
+## 其他示例 / Other Examples
+
+| 示例 | 适合谁 | 你会验证什么 | 启动命令 |
 | --- | --- | --- | --- |
-| [assistant](./assistant/README.md) | 面向终端用户的统一入口。首次只选择 Claude、Codex、OpenRouter、自定义 chatbot 或多应用接入之一，然后扫码即用。 | 入门 | `@openwx/bot`, `@openwx/connectors`, `@openwx/hub` |
-| [minimal](./minimal/README.md) | 最短路径展示 `createBot()`、消息处理和 `start()` 生命周期。 | 入门 | `@openwx/bot` |
-| [media-bot](./media-bot/README.md) | 演示图片下载解密、尺寸读取、本地图片发送和文件发送。 | 中级 | `@openwx/bot`, `@openwx/core` |
-| [multi-app](./multi-app/README.md) | 高级多应用路由示例。适合需要同时挂多个 agent，并接受前缀分流的场景。 | 中级 | `@openwx/bot`, `@openwx/hub`, `@openwx/connectors` |
-| [openrouter-chatbot](./openrouter-chatbot/README.md) | 最小 OpenRouter chatbot case。 | 中级 | `@openwx/bot`, `@openwx/connectors` |
-| [desktop-agent](./desktop-agent/README.md) | 展示微信远控桌面、白名单保护、危险命令确认和截图回传。 | 高级 | `@openwx/bot`, `@openwx/core` |
+| [`multi-app`](./multi-app) | 需要同时接多个应用的人 | `/claude`、`/codex`、`/router`、`/echo` 路由 | `pnpm --filter @openwx/example-multi-app start` |
+| [`minimal`](./minimal) | 第一次验证微信链路的开发者 | 最基础的收消息和回消息 | `pnpm --filter @openwx/example-minimal start` |
+| [`openrouter-chatbot`](./openrouter-chatbot) | 想单独接 OpenRouter 的开发者 | 单模型对话 | `pnpm --filter @openwx/example-openrouter-chatbot start` |
+| [`media-bot`](./media-bot) | 需要图片和文件能力的人 | 图片下载、图片回复、文件发送 | `pnpm --filter @openwx/example-media-bot start` |
+| [`desktop-agent`](./desktop-agent) | 需要本地自动化能力的人 | 截图、命令执行、白名单控制 | `pnpm --filter @openwx/example-desktop-agent start` |
 
-## Validation
+| Example | Best for | What it validates | Command |
+| --- | --- | --- | --- |
+| [`multi-app`](./multi-app) | multi-app users | prefix routing with `/claude`, `/codex`, `/router`, `/echo` | `pnpm --filter @openwx/example-multi-app start` |
+| [`minimal`](./minimal) | first-time developers | basic receive-and-reply flow | `pnpm --filter @openwx/example-minimal start` |
+| [`openrouter-chatbot`](./openrouter-chatbot) | OpenRouter users | single-model chat | `pnpm --filter @openwx/example-openrouter-chatbot start` |
+| [`media-bot`](./media-bot) | media-heavy apps | image download, image reply, file sending | `pnpm --filter @openwx/example-media-bot start` |
+| [`desktop-agent`](./desktop-agent) | local automation users | screenshots, command execution, allowlists | `pnpm --filter @openwx/example-desktop-agent start` |
 
-- 根目录验证：`pnpm build && pnpm test && pnpm lint`
-- 单示例验证：
-  - `cd examples/assistant && npm install && npx tsc --noEmit`
-  - `cd examples/minimal && npm install && npx tsc --noEmit`
-  - `cd examples/media-bot && npm install && npx tsc --noEmit`
-  - `cd examples/multi-app && npm install && npx tsc --noEmit`
-  - `cd examples/openrouter-chatbot && npm install && npx tsc --noEmit`
-  - `cd examples/desktop-agent && npm install && npx tsc --noEmit`
+## 推荐顺序 / Recommended Order
+
+1. 先跑 [`assistant`](./assistant)
+2. 如果你已有 HTTP 服务，直接在 `assistant` 里选 `自定义 chatbot`
+3. 如果你要接多个应用，再看 [`multi-app`](./multi-app)
+4. 如果你要自己写功能，再看 `packages/` 下的 README
+
+1. Run [`assistant`](./assistant) first
+2. If you already have an HTTP service, choose `Custom chatbot` inside `assistant`
+3. Move to [`multi-app`](./multi-app) only when multiple apps share one bot
+4. Read the package READMEs when you need custom development

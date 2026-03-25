@@ -1,42 +1,28 @@
 # Minimal Bot Example
 
-最简 Bot 示例只做一件事：启动 `createBot()`，收到消息后原样回复。
+这是 openWX 的最小可运行示例。它只做一件事：收到消息后原样回复，用来验证微信登录、轮询和文本回复链路是否正常。
 
-## 功能说明
+This is the smallest runnable openWX example. It simply echoes incoming messages so you can validate login, polling, and text replies.
 
-- 展示 `createBot()`、`onMessage` 和 `bot.start()` 的最短链路
-- 默认回复收到的文本；空消息时给出固定提示
-- 适合第一次验证扫码登录、轮询收消息和文本回复
-
-## 前置条件
-
-- Node.js 20 及以上
-- npm 10 及以上
-- 仓库根目录已执行过 `pnpm install`
-- 一个可扫码登录的微信账号
-
-## 安装步骤
+## 运行 / Run
 
 ```bash
-cd examples/minimal
-npm install
-cp .env.example .env
+pnpm install
+pnpm --filter @openwx/example-minimal start
 ```
 
-`OPENWX_TOKEN` 可选；不填时会走扫码登录流程。
+## 在微信里怎么试 / What to Send in WeChat
 
-## 运行方法
+给 Bot 发 `hello`，预期会收到原样回声。
 
-```bash
-npm start
-```
+Send `hello` to the bot and expect an echoed reply.
 
-## 预期输出
+## 适合谁 / Who It Is For
 
-- 终端展示二维码或已恢复的账号信息
-- 微信向 Bot 发送 `hello`
-- Bot 回复 `Echo: hello`
+- 第一次接触 openWX 的开发者
+- 想先验证微信链路是否正常的人
+- 想在最短代码路径上理解 `createBot()` 的人
 
-## 关键代码
-
-- [index.ts](./index.ts): 10 行以内的最简可运行示例
+- developers new to openWX
+- anyone validating the WeChat path first
+- anyone who wants to understand `createBot()` with minimal code

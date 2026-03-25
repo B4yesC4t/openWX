@@ -1,53 +1,44 @@
 # Desktop Agent Example
 
-桌面 Agent 示例把微信消息映射到本地桌面操作，重点展示白名单保护、危险命令确认和媒体回传。
+这个示例把微信消息映射到本地桌面操作，适合做受控的桌面 agent 或内部自动化入口。
 
-## 功能说明
+This example maps WeChat messages to local desktop actions and is useful for controlled desktop agents or internal automation.
 
-- `/ls [path]` 列出工作目录内的文件
-- `/screenshot` 截取当前桌面并以图片形式回传
-- `/exec <command>` 执行本地命令；命中危险模式时要求先 `/confirm`
-- 仅响应白名单用户，未授权用户的消息直接忽略
+## 能做什么 / What It Does
 
-## 前置条件
+- `/ls [path]`
+- `/screenshot`
+- `/exec <command>`
+- 危险命令需要先 `/confirm`
+- 只对白名单用户生效
 
-- Node.js 20 及以上
-- npm 10 及以上
-- 仓库根目录已执行过 `pnpm install`
-- 一个可扫码登录的微信账号
-- `OPENWX_ALLOWED_USERS` 已配置白名单
-- macOS 需要自带 `screencapture`；Linux 需要安装 ImageMagick 的 `import`
+- `/ls [path]`
+- `/screenshot`
+- `/exec <command>`
+- dangerous commands require `/confirm`
+- only whitelisted users are allowed
 
-## 安装步骤
-
-```bash
-cd examples/desktop-agent
-npm install
-cp .env.example .env
-```
-
-## 运行方法
+## 运行 / Run
 
 ```bash
-npm start
+pnpm install
+pnpm --filter @openwx/example-desktop-agent start
 ```
 
-## 体验方法
+## 在微信里怎么试 / What to Send in WeChat
 
-1. 白名单用户发送 `/ls`
-2. 白名单用户发送 `/screenshot`
-3. 白名单用户发送 `/exec pwd`
-4. 白名单用户发送危险命令，例如 `/exec rm -rf tmp`，Bot 会要求先发送 `/confirm`
+- `/ls`
+- `/screenshot`
+- `/exec pwd`
 
-## 预期输出
+- `/ls`
+- `/screenshot`
+- `/exec pwd`
 
-- 未授权用户没有任何回复
-- `/ls` 返回目录列表
-- `/screenshot` 返回桌面截图
-- 危险命令必须先确认，避免误操作
+## 注意 / Notes
 
-## 文件说明
+这是高权限示例，不适合作为普通终端用户的默认入口。
+更通用的用户入口请先看 [`assistant`](../assistant)。
 
-- [index.ts](./index.ts): Bot 入口与命令编排
-- [src/security.ts](./src/security.ts): 白名单、危险命令和路径限制
-- [src/system.ts](./src/system.ts): 本地系统操作封装
+This is a high-privilege example and should not be the default entry for general end users.
+Use [`assistant`](../assistant) for the standard user-facing flow.

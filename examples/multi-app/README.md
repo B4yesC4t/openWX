@@ -1,64 +1,80 @@
-# Multi App Routing Example
+# Multi-App Example
 
-多应用示例使用 `hub.yaml` 描述路由规则，再由 Bot 在运行时按前缀把消息分发给不同 connector。
+`multi-app` 是 openWX 的高级模式示例。它把多个 agent / app 挂在同一个微信入口下，通过前缀路由把消息分发给不同处理器。
 
-## 功能说明
+`multi-app` is the advanced mode example for openWX. Multiple agents or apps share one WeChat entry, and prefixes route messages to the correct handler.
 
-- `/claude` 前缀路由到 Claude Code connector
-- `/codex` 前缀路由到 Codex connector
-- `/router` 前缀路由到 OpenRouter connector
-- `/echo` 前缀路由到 Echo connector
-- 未匹配前缀时返回帮助信息
-- 启动时读取 `hub.yaml`，通过 `@openwx/hub` 校验配置并输出路由摘要
-- 首次运行若未缓存微信登录态，会自动生成二维码 PNG 并用系统默认图片查看器打开
-- 首次运行可直接粘贴 OpenRouter API Key；留空则先跳过，`/router` 会返回配置提示
+## 内置路由 / Built-In Routes
 
-## 前置条件
+- `/claude <问题>`
+- `/codex <问题>`
+- `/router <问题>`
+- `/echo <文本>`
 
-- Node.js 20 及以上
-- npm 10 及以上
-- 仓库根目录已执行过 `pnpm install`
-- 一个可扫码登录的微信账号
-- 若要体验 `/claude`，本机需安装可执行的 `claude` CLI；否则会返回 connector 的降级提示
-- 若要体验 `/codex`，本机需安装可执行的 `codex` CLI；否则会返回 connector 的降级提示
-- 若要体验 `/router`，可在启动时输入 OpenRouter API Key，或预先配置 `OPENROUTER_API_KEY`
+- `/claude <prompt>`
+- `/codex <prompt>`
+- `/router <prompt>`
+- `/echo <text>`
 
-## 安装步骤
+## 什么时候用它 / When to Use It
+
+- 你需要同时接多个 AI 应用
+- 你想把多个内部系统挂在一个微信入口下
+- 你接受“通过前缀区分应用”的交互方式
+
+- when multiple AI apps need to share one WeChat entry
+- when several internal tools should be reachable from one WeChat bot
+- when prefix-based routing is acceptable
+
+如果你只接一个应用，请优先使用 [`assistant`](../assistant)；单应用模式下直接聊天的体验更好。
+
+If you only need one app, use [`assistant`](../assistant) first; direct chat is the better UX for single-app mode.
+
+## 运行方式 / Run
 
 ```bash
-cd examples/multi-app
-npm install
+pnpm install
+pnpm --filter @openwx/example-multi-app start
 ```
 
-## 运行方法
+## 在微信里怎么试 / What to Send in WeChat
 
-```bash
-npm start
-```
+- `/claude 用一句话介绍 openWX`
+- `/codex 用一句话介绍 openWX`
+- `/router 用一句话介绍 openWX`
+- `/echo hello`
 
-首次启动流程：
+- `/claude introduce openWX in one sentence`
+- `/codex introduce openWX in one sentence`
+- `/router introduce openWX in one sentence`
+- `/echo hello`
 
-1. 终端会询问是否提供 OpenRouter API Key，可直接粘贴，也可回车跳过
-2. 如果当前没有已保存的微信登录态，程序会生成二维码图片并自动打开
-3. 用微信扫码确认后，登录态会自动保存在本机，后续再次启动一般无需再扫码
+默认行为：
 
-## 体验方法
+- `Claude`、`Codex`、`Echo` 默认可用
+- 会在首次启动时询问是否提供 OpenRouter key
+- 没有登录态时会自动生成二维码 PNG 并尝试打开
 
-1. 发送 `/echo hello`，期待先看到 typing，再收到 `hello`
-2. 发送 `/claude 用一句话介绍 openWX`，期待收到 Claude Code connector 的回答或降级提示
-3. 发送 `/codex 帮我解释这个仓库是做什么的`，期待收到 Codex connector 的回答或降级提示
-4. 配好 OpenRouter key 后发送 `/router 用一句话介绍 openWX`，期待收到 OpenRouter 回复
-5. 发送普通文本，期待收到帮助信息
+Default behavior:
 
-## 预期输出
+- `Claude`, `Codex`, and `Echo` are available by default
+- OpenRouter is optionally enabled on first run
+- if no login session exists, a QR PNG is generated and opened
 
-- 终端打印 `Hub example ready with 4 routes.`
-- 若首次登录，会自动打开二维码 PNG
-- 微信按前缀收到不同 downstream handler 的回复
+## 扩展方式 / How to Extend
 
-## 文件说明
+这个示例适合改造成：
 
-- [hub.yaml](./hub.yaml): 路由配置
-- [index.ts](./index.ts): Bot 入口与 runtime dispatcher
-- [src/config.ts](./src/config.ts): YAML 读取与配置校验
-- [src/router.ts](./src/router.ts): 路由匹配与帮助文案
+- 多个 AI agent 的统一入口
+- 多个业务系统的统一消息网关
+- 内部工具集合的微信工作台
+
+This example is a good starting point for:
+
+- a shared entry point for multiple AI agents
+- a message gateway for multiple business systems
+- a WeChat workbench for internal tools
+
+路由逻辑在 [`index.ts`](./index.ts) 及 `src/` 目录下，新增 handler 后即可继续扩展。
+
+The routing logic lives in [`index.ts`](./index.ts) and `src/`; add handlers there to extend it further.
